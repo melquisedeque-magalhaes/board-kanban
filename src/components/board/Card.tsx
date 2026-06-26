@@ -5,6 +5,7 @@ import styles from "./board.module.css";
 
 export interface CardData {
   id: string; code?: string | null; title: string;
+  position: number;
   priority?: "ALTA" | "MEDIA" | "BAIXA" | null;
   assignees: { id: string; name: string }[];
   labels: { id: string; name: string; color: string }[];

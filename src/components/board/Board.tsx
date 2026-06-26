@@ -33,13 +33,20 @@ export function Board({ initialColumns }: { initialColumns: ColumnData[] }) {
     target.cards.splice(insertAt, 0, from.card);
     setColumns(next);
 
-    // position no cliente: meio dos vizinhos
+    // position no cliente: meio dos vizinhos (nunca usa o próprio card como vizinho)
     const before = target.cards[insertAt - 1]?.id;
     const after = target.cards[insertAt + 1]?.id;
-    const posOf = (id?: string) => prev.flatMap((c) => c.cards).find((x) => x.id === id);
-    const p = (posOf(before) as any)?.position ?? null;
-    const n = (posOf(after) as any)?.position ?? null;
-    const position = p == null && n == null ? 1000 : p == null ? n - 1000 : n == null ? p + 1000 : (p + n) / 2;
+    const posOf = (id?: string) =>
+      id && id !== String(active.id)
+        ? prev.flatMap((c) => c.cards).find((x) => x.id === id)
+        : undefined;
+    const p = posOf(before)?.position ?? null;
+    const n = posOf(after)?.position ?? null;
+    let position: number;
+    if (p == null && n == null) position = 1000;
+    else if (p == null) position = n! - 1000;
+    else if (n == null) position = p + 1000;
+    else position = (p + n) / 2;
 
     const res = await fetch(`/api/cards/${active.id}`, {
       method: "PATCH", headers: { "content-type": "application/json" },
@@ -49,7 +56,7 @@ export function Board({ initialColumns }: { initialColumns: ColumnData[] }) {
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
+    <DndContext id="board" sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
       <div className={styles.board}>
         {columns.map((c) => <Column key={c.id} column={c} />)}
       </div>
