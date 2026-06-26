@@ -135,6 +135,21 @@ PostgreSQL
 |----------|-----------|---------|
 | `DATABASE_URL` | String de conexão PostgreSQL | `postgresql://user:pass@localhost:5432/kanban?schema=public` |
 | `MCP_TOKEN` | Token Bearer para autenticação MCP | `abc123def456...` (gerar com `openssl rand -hex 24`) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Chave pública do Clerk | `pk_test_...` (dashboard Clerk) |
+| `CLERK_SECRET_KEY` | Chave secreta do Clerk | `sk_test_...` (dashboard Clerk) |
+
+## Autenticação (Clerk)
+
+O board e a REST API ficam **atrás de login** (Clerk). O `/api/mcp` **NÃO** — os agentes autenticam por `Authorization: Bearer $MCP_TOKEN`, não por sessão Clerk (o `src/proxy.ts` marca `/api/mcp` como rota pública).
+
+**Setup:**
+1. Criar app no [dashboard do Clerk](https://dashboard.clerk.com) (ou `npx clerk@latest init`, que já cria o app e preenche o `.env`).
+2. Habilitar os métodos de login: **Email** (marcar **"Email verification link"** para magic link de verdade, não código) + **Google** (Social Connections).
+3. Setar `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` e `CLERK_SECRET_KEY` (local em `.env`, e na Vercel).
+
+**Rotas:** `/sign-in`, `/sign-up` (componentes Clerk). Não-logado é redirecionado pro `/sign-in`. O `<UserButton>` na top bar faz logout/perfil.
+
+**Sync de usuário:** no primeiro acesso logado, `syncCurrentUser()` (`src/server/users.ts`) faz upsert do usuário Clerk na tabela `User` (por `clerkId`) → o logado vira assignee/autor real.
 
 ## Modelo de Dados
 
