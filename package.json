@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:up": "docker compose up -d",
+    "db:seed": "prisma db seed",
+    "db:migrate": "prisma migrate dev"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
