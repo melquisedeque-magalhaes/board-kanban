@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useMemo } from "react";
 import {
   DndContext, DragEndEvent, PointerSensor, useSensor, useSensors, closestCorners,
 } from "@dnd-kit/core";
 import { Column, type ColumnData } from "./Column";
-import { CardDialog } from "./CardDialog";
+import { applyView, isFiltering, type ViewState } from "./view";
 import styles from "./board.module.css";
 
 function findCard(cols: ColumnData[], id: string) {
@@ -12,15 +12,15 @@ function findCard(cols: ColumnData[], id: string) {
   return null;
 }
 
-export function Board({ initialColumns }: { initialColumns: ColumnData[] }) {
-  const [columns, setColumns] = useState<ColumnData[]>(initialColumns);
-  const [addTo, setAddTo] = useState<string | null>(null);
+export function Board({ columns, setColumns, view, onAdd }: {
+  columns: ColumnData[];
+  setColumns: (c: ColumnData[]) => void;
+  view: ViewState;
+  onAdd: (columnId: string) => void;
+}) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  async function refetch() {
-    const r = await fetch("/api/columns");
-    setColumns(await r.json());
-  }
+  const filtering = isFiltering(view);
+  const display = useMemo(() => applyView(columns, view), [columns, view]);
 
   async function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
@@ -63,11 +63,15 @@ export function Board({ initialColumns }: { initialColumns: ColumnData[] }) {
   }
 
   return (
-    <DndContext id="board" sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
+    <DndContext
+      id="board"
+      sensors={filtering ? [] : sensors}
+      collisionDetection={closestCorners}
+      onDragEnd={onDragEnd}
+    >
       <div className={styles.board}>
-        {columns.map((c) => <Column key={c.id} column={c} onAdd={setAddTo} />)}
+        {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} />)}
       </div>
-      {addTo && <CardDialog columnId={addTo} onClose={() => setAddTo(null)} onCreated={refetch} />}
     </DndContext>
   );
 }

@@ -34,7 +34,7 @@
 }
 .tabActive { background: #efefee; color: #37352f; font-weight: 500; }
 
-.toolRight { display: flex; align-items: center; gap: 14px; }
+.toolRight { display: flex; align-items: center; gap: 12px; }
 .toolIcon { color: #9b9a97; cursor: pointer; }
 .newBtn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -42,3 +42,60 @@
   background: #2383e2; border: none;
   font-size: 13px; font-weight: 600; color: #fff; cursor: pointer;
 }
+
+/* presença */
+.avatarStack { display: flex; align-items: center; }
+.avatarStack > * + * { margin-left: -8px; }
+.topAvatar {
+  border-radius: 999px; border: 2px solid #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; flex-shrink: 0;
+}
+.more { font-size: 12px; color: #9b9a97; }
+
+/* popovers genéricos (filtro/sort/share) */
+.popWrap { position: relative; display: inline-flex; }
+.popover {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
+  background: #fff; border: 1px solid #e6e5e3; border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.14);
+  padding: 8px; min-width: 220px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.popLabel { font-size: 11px; font-weight: 600; color: #9b9a97; padding: 6px 6px 2px; text-transform: uppercase; letter-spacing: .04em; }
+.popSelect {
+  width: 100%; padding: 7px 8px; font-size: 13px;
+  border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; background: #fff;
+}
+.popAction {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px; border-radius: 6px; border: none; background: none;
+  font-size: 13px; color: #37352f; cursor: pointer; text-align: left; width: 100%;
+}
+.popAction:hover { background: #f1f1ef; }
+
+.memberList { display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; }
+.member { display: flex; align-items: center; gap: 8px; padding: 6px; font-size: 13px; color: #37352f; }
+.onlineDot { width: 8px; height: 8px; border-radius: 999px; background: #3aa675; margin-left: auto; }
+
+/* botões de ícone com estado ativo + badge */
+.iconBtn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px;
+  border: none; background: none; color: #9b9a97; cursor: pointer;
+}
+.iconBtn:hover { background: #f1f1ef; color: #37352f; }
+.iconActive { background: #e7f0fb; color: #2383e2; }
+.badge {
+  position: absolute; top: -2px; right: -2px;
+  min-width: 14px; height: 14px; padding: 0 3px;
+  border-radius: 999px; background: #2383e2; color: #fff;
+  font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+}
+
+.searchWrap { display: inline-flex; align-items: center; }
+.searchInput {
+  width: 180px; padding: 6px 10px; font-size: 13px;
+  border: 1px solid #d3d2cf; border-radius: 6px; outline: none;
+}
+.searchInput:focus { border-color: #2383e2; }
