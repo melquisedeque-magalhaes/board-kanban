@@ -109,7 +109,7 @@ export function Chrome({ view, setView, users, online, onNew }: {
               </div>
             )}
           </div>
-          <UserButton />
+          <UserButton showName />
         </div>
       </div>
 

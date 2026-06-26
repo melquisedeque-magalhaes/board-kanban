@@ -21,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={inter.variable}>
       <body style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-        <ClerkProvider>
+        <ClerkProvider afterSignOutUrl="/sign-in">
           {children}
         </ClerkProvider>
       </body>
