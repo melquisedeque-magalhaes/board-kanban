@@ -6,7 +6,7 @@ import styles from "./board.module.css";
 
 export interface ColumnData { id: string; name: string; cards: CardData[]; }
 
-export function Column({ column }: { column: ColumnData }) {
+export function Column({ column, onAdd }: { column: ColumnData; onAdd: (columnId: string) => void; }) {
   const { setNodeRef } = useDroppable({ id: column.id });
   return (
     <div className={styles.column}>
@@ -16,6 +16,7 @@ export function Column({ column }: { column: ColumnData }) {
           {column.cards.map((c) => <Card key={c.id} card={c} />)}
         </div>
       </SortableContext>
+      <button className={styles.addBtn} onClick={() => onAdd(column.id)}>+ New page</button>
     </div>
   );
 }

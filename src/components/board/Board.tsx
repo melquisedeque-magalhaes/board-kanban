@@ -4,6 +4,7 @@ import {
   DndContext, DragEndEvent, PointerSensor, useSensor, useSensors, closestCorners,
 } from "@dnd-kit/core";
 import { Column, type ColumnData } from "./Column";
+import { CardDialog } from "./CardDialog";
 import styles from "./board.module.css";
 
 function findCard(cols: ColumnData[], id: string) {
@@ -13,7 +14,13 @@ function findCard(cols: ColumnData[], id: string) {
 
 export function Board({ initialColumns }: { initialColumns: ColumnData[] }) {
   const [columns, setColumns] = useState<ColumnData[]>(initialColumns);
+  const [addTo, setAddTo] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  async function refetch() {
+    const r = await fetch("/api/columns");
+    setColumns(await r.json());
+  }
 
   async function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
@@ -58,8 +65,9 @@ export function Board({ initialColumns }: { initialColumns: ColumnData[] }) {
   return (
     <DndContext id="board" sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
       <div className={styles.board}>
-        {columns.map((c) => <Column key={c.id} column={c} />)}
+        {columns.map((c) => <Column key={c.id} column={c} onAdd={setAddTo} />)}
       </div>
+      {addTo && <CardDialog columnId={addTo} onClose={() => setAddTo(null)} onCreated={refetch} />}
     </DndContext>
   );
 }
