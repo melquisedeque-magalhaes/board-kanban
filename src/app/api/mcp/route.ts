@@ -16,13 +16,20 @@ async function handle(req: Request): Promise<Response> {
       headers: { "content-type": "application/json" },
     });
   }
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true,
-  });
-  const server = buildMcpServer();
-  await server.connect(transport);
-  return transport.handleRequest(req);
+  try {
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    });
+    const server = buildMcpServer();
+    await server.connect(transport);
+    return await transport.handleRequest(req);
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: "internal_error", message: String(err) }),
+      { status: 500, headers: { "content-type": "application/json" } },
+    );
+  }
 }
 
 export const GET = handle;

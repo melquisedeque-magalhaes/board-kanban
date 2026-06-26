@@ -1,7 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as cards from "@/server/cards";
-import type { Priority } from "@prisma/client";
 
 const priority = z.enum(["ALTA", "MEDIA", "BAIXA"]);
 const json = (data: unknown) => ({
@@ -87,8 +86,11 @@ export function buildMcpServer() {
         position: z.number().optional(),
       },
     },
-    async ({ id, columnId, columnName, position }) =>
-      json(await cards.moveCard(id, (columnId ?? columnName)!, position)),
+    async ({ id, columnId, columnName, position }) => {
+      const ref = columnId ?? columnName;
+      if (!ref) throw new Error("columnId ou columnName é obrigatório");
+      return json(await cards.moveCard(id, ref, position));
+    },
   );
 
   s.registerTool(

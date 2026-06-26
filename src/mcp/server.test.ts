@@ -18,4 +18,16 @@ describe("buildMcpServer", () => {
     const s = buildMcpServer();
     expect(s).toBeTruthy();
   });
+
+  it("registra exatamente as 9 tools esperadas", () => {
+    const s = buildMcpServer();
+    const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
+      ._registeredTools;
+    expect(Object.keys(registered).sort()).toEqual(
+      [
+        "add_comment", "create_card", "get_card", "list_cards", "list_columns",
+        "list_labels", "list_users", "move_card", "update_card",
+      ].sort(),
+    );
+  });
 });
