@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Priority {
+  ALTA
+  MEDIA
+  BAIXA
+}
+
+model Board {
+  id        String   @id @default(cuid())
+  name      String
+  columns   Column[]
+  createdAt DateTime @default(now())
+}
+
+model Column {
+  id       String  @id @default(cuid())
+  boardId  String
+  board    Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name     String
+  color    String?
+  position Float
+  cards    Card[]
+}
+
+model Card {
+  id          String    @id @default(cuid())
+  columnId    String
+  column      Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  code        String?
+  title       String
+  description String?   @db.Text
+  priority    Priority?
+  position    Float
+  assignees   User[]    @relation("CardAssignees")
+  labels      Label[]   @relation("CardLabels")
+  comments    Comment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?   @unique
+  avatarUrl String?
+  cards     Card[]    @relation("CardAssignees")
+  comments  Comment[]
+}
+
+model Label {
+  id    String @id @default(cuid())
+  name  String
+  color String
+  cards Card[] @relation("CardLabels")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id])
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+}
