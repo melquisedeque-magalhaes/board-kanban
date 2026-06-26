@@ -126,3 +126,5 @@ export async function addComment(cardId: string, body: string, authorId?: string
 
 export const listUsers = () => db.user.findMany({ orderBy: { name: "asc" } });
 export const listLabels = () => db.label.findMany({ orderBy: { name: "asc" } });
+
+export type { CardFilter, CreateCardInput, UpdateCardInput } from "./types";
