@@ -1,3 +1,4 @@
+import {ClerkProvider} from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -19,7 +20,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className={inter.variable}>
-      <body style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}>{children}</body>
+      <body style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
+        <ClerkProvider>
+          {children}
+        </ClerkProvider>
+      </body>
     </html>
   );
 }

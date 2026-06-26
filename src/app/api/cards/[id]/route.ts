@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { updateCard, moveCard, getCard } from "@/server/cards";
+import { requireUser } from "@/server/auth-guard";
 import { db } from "@/lib/db";
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const unauth = await requireUser();
+  if (unauth) return unauth;
   const { id } = await ctx.params;
   const body = await req.json();
   if (body.columnId !== undefined || body.position !== undefined) {
@@ -15,6 +18,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 }
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const unauth = await requireUser();
+  if (unauth) return unauth;
   const { id } = await ctx.params;
   await db.card.delete({ where: { id } });
   return NextResponse.json({ ok: true });
