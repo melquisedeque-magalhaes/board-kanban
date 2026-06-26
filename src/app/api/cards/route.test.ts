@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: vi.fn().mockResolvedValue({ userId: "clerk_test" }),
+}));
 vi.mock("@/server/cards", () => ({
   listCards: vi.fn().mockResolvedValue([{ id: "x", title: "t" }]),
   createCard: vi.fn().mockResolvedValue({ id: "new", title: "novo" }),
