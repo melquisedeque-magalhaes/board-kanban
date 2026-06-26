@@ -1,0 +1,106 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]: 🤖 Time de IA
+          - generic [ref=e7]: /
+          - generic [ref=e8]: Board Time de IA
+        - generic [ref=e9]:
+          - generic [ref=e10]: Edited just now
+          - generic [ref=e11]:
+            - generic [ref=e12]: D
+            - generic [ref=e13]: U
+            - generic [ref=e14]: G
+          - generic [ref=e15]: "+3"
+          - button "Share" [ref=e16] [cursor=pointer]:
+            - img [ref=e17]
+            - text: Share
+      - generic [ref=e22]:
+        - heading "Board Time de IA" [level=1] [ref=e23]
+        - paragraph [ref=e24]: Kanban de tarefas do time de IA
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27] [cursor=pointer]:
+            - img [ref=e28]
+            - text: Default view
+          - generic [ref=e30] [cursor=pointer]:
+            - img [ref=e31]
+            - text: Kanban
+        - generic [ref=e33]:
+          - img [ref=e34] [cursor=pointer]
+          - img [ref=e36] [cursor=pointer]
+          - img [ref=e39] [cursor=pointer]
+          - img [ref=e41] [cursor=pointer]
+          - img [ref=e47] [cursor=pointer]
+          - img [ref=e50] [cursor=pointer]
+          - button "New" [ref=e51] [cursor=pointer]:
+            - text: New
+            - img [ref=e52]
+    - generic [ref=e54]:
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - generic [ref=e57]: A Fazer
+          - generic [ref=e58]: "1"
+        - button "Implementar Tool Search A Fazer MS Alta" [ref=e60]:
+          - generic [ref=e61]: Implementar Tool Search
+          - generic [ref=e62]: A Fazer
+          - generic [ref=e63]:
+            - generic "Melqui Sodré" [ref=e65]: MS
+            - generic [ref=e66]: Alta
+        - button "+ New page" [ref=e67] [cursor=pointer]
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - generic [ref=e70]: Em Andamento
+          - generic [ref=e71]: "1"
+        - button "TI-13 · MCP do Falcon Em Andamento MS Média" [ref=e73]:
+          - generic [ref=e74]:
+            - generic [ref=e75]: TI-13 ·
+            - text: MCP do Falcon
+          - generic [ref=e76]: Em Andamento
+          - generic [ref=e77]:
+            - generic "Melqui Sodré" [ref=e79]: MS
+            - generic [ref=e80]: Média
+        - button "+ New page" [ref=e81] [cursor=pointer]
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - generic [ref=e84]: Aguardando Teste
+          - generic [ref=e85]: "1"
+        - button "TI-2 · DS Gol Web Aguardando Teste LV Alta" [ref=e87]:
+          - generic [ref=e88]:
+            - generic [ref=e89]: TI-2 ·
+            - text: DS Gol Web
+          - generic [ref=e90]: Aguardando Teste
+          - generic [ref=e91]:
+            - generic "Lucas Vinicius Cardoso" [ref=e93]: LV
+            - generic [ref=e94]: Alta
+        - button "+ New page" [ref=e95] [cursor=pointer]
+      - generic [ref=e96]:
+        - generic [ref=e97]:
+          - generic [ref=e98]: Teste
+          - generic [ref=e99]: "0"
+        - button "+ New page" [ref=e101] [cursor=pointer]
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e104]: Aguardando Deploy
+          - generic [ref=e105]: "0"
+        - button "+ New page" [ref=e107] [cursor=pointer]
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - generic [ref=e110]: Done
+          - generic [ref=e111]: "0"
+        - button "+ New page" [ref=e113] [cursor=pointer]
+      - generic [ref=e114]:
+        - generic [ref=e115]:
+          - generic [ref=e116]: Concluído
+          - generic [ref=e117]: "0"
+        - button "+ New page" [ref=e119] [cursor=pointer]
+      - generic [ref=e120]:
+        - generic [ref=e121]:
+          - generic [ref=e122]: Cancelado
+          - generic [ref=e123]: "0"
+        - button "+ New page" [ref=e125] [cursor=pointer]
+    - status [ref=e126]
+  - button "Open Next.js Dev Tools" [ref=e132] [cursor=pointer]:
+    - img [ref=e133]
+  - alert [ref=e136]
