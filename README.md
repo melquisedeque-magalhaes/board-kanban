@@ -50,7 +50,13 @@ Isso inicia um contêiner PostgreSQL na porta 5432 com credenciais padrão:
 
 ### 4. Configurar variáveis de ambiente
 
-Crie um arquivo `.env.local` (baseado em `.env.example`):
+Crie um arquivo `.env` (baseado em `.env.example`):
+
+```bash
+cp .env.example .env
+```
+
+Edite o `.env` com suas credenciais:
 
 ```bash
 DATABASE_URL="postgresql://kanban:kanban@localhost:5432/kanban?schema=public"
@@ -221,7 +227,7 @@ curl -X POST http://localhost:3000/api/mcp \
     "params":{
       "name":"create_card",
       "arguments":{
-        "columnName":"To Do",
+        "columnName":"A Fazer",
         "title":"Nova tarefa",
         "priority":"ALTA"
       }
@@ -275,10 +281,11 @@ npm test
 
 ### Cobertura
 
-- ✅ Testes de posicionamento (`src/lib/__tests__/positions.test.ts`)
-- ✅ Testes da camada de domínio (`src/server/__tests__/cards.test.ts`)
-- ✅ Testes de MCP (`src/mcp/__tests__/server.test.ts`)
-- ✅ Testes de REST API (`src/app/api/__tests__/cards.test.ts`)
+- ✅ Testes de posicionamento (`src/lib/positions.test.ts`)
+- ✅ Testes da camada de domínio (`src/server/cards.test.ts`)
+- ✅ Testes de MCP (`src/mcp/server.test.ts`)
+- ✅ Testes de REST API (`src/app/api/cards/route.test.ts`)
+- ✅ Testes de autenticação MCP (`src/app/api/mcp/route.test.ts`)
 
 Os testes usam **Vitest** com TypeScript suporte integrado.
 
@@ -294,15 +301,15 @@ board-kanban/
 │   │   └── api/               # Rotas API (REST + MCP)
 │   ├── server/                # Domain layer
 │   │   ├── cards.ts           # Lógica compartilhada
-│   │   ├── types.ts           # Tipos de input/output
-│   │   └── __tests__/         # Testes da camada
+│   │   ├── cards.test.ts      # Testes da camada
+│   │   └── types.ts           # Tipos de input/output
 │   ├── mcp/                   # MCP Server
 │   │   ├── server.ts          # Construtor do MCP
-│   │   └── __tests__/         # Testes MCP
+│   │   └── server.test.ts     # Testes MCP
 │   └── lib/                   # Utilitários
 │       ├── db.ts              # Cliente Prisma
 │       ├── positions.ts       # Lógica de posicionamento
-│       └── __tests__/         # Testes de util
+│       └── positions.test.ts  # Testes de util
 ├── prisma/
 │   ├── schema.prisma          # Definição do schema
 │   ├── migrations/            # Histórico de migrações

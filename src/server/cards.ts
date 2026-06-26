@@ -106,7 +106,14 @@ export async function updateCard(id: string, input: UpdateCardInput) {
 }
 
 export async function moveCard(id: string, columnIdRef: string, position?: number) {
-  const columnId = await resolveColumnId({ columnId: columnIdRef, columnName: columnIdRef });
+  let columnId: string;
+  if (!columnIdRef) {
+    const card = await db.card.findUnique({ where: { id }, select: { columnId: true } });
+    if (!card) throw new Error(`Card não encontrado: ${id}`);
+    columnId = card.columnId;
+  } else {
+    columnId = await resolveColumnId({ columnId: columnIdRef, columnName: columnIdRef });
+  }
   let pos = position;
   if (pos == null) {
     const last = await db.card.findMany({
