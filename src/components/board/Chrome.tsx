@@ -2,13 +2,8 @@ import {
   Users, Table, Columns3, Funnel, ArrowUpDown, Zap, Sun, Search,
   SlidersHorizontal, ChevronDown,
 } from "lucide-react";
+import { UserButton } from "@clerk/nextjs";
 import styles from "./chrome.module.css";
-
-const topAvatars = [
-  { c: "#6b7cff", t: "#fff", i: "D" },
-  { c: "#cdb4f6", t: "#3a1f6b", i: "U" },
-  { c: "#3aa675", t: "#fff", i: "G" },
-];
 
 export function Chrome() {
   return (
@@ -21,21 +16,10 @@ export function Chrome() {
         </div>
         <div className={styles.topRight}>
           <span className={styles.edited}>Edited just now</span>
-          <div className={styles.avatarStack}>
-            {topAvatars.map((a) => (
-              <span
-                key={a.i}
-                className={styles.topAvatar}
-                style={{ background: a.c, color: a.t }}
-              >
-                {a.i}
-              </span>
-            ))}
-          </div>
-          <span className={styles.more}>+3</span>
           <button className={styles.share}>
             <Users size={14} /> Share
           </button>
+          <UserButton />
         </div>
       </div>
 

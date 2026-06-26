@@ -11,15 +11,6 @@
 
 .topRight { display: flex; align-items: center; gap: 14px; }
 .edited { font-size: 12px; color: #9b9a97; }
-.avatarStack { display: flex; align-items: center; }
-.topAvatar {
-  width: 24px; height: 24px; border-radius: 999px;
-  border: 2px solid #fff; margin-left: -6px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 600;
-}
-.topAvatar:first-child { margin-left: 0; }
-.more { font-size: 12px; color: #787774; }
 .share {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; border-radius: 6px;
