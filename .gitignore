@@ -29,3 +29,4 @@ next-env.d.ts
 .playwright-mcp/
 board-task7.png
 board-pencil-match.png
+.agents/
