@@ -1,22 +1,29 @@
 "use client";
 import { useState } from "react";
+import type { ColumnData } from "./Column";
 import styles from "./board.module.css";
 
-export function CardDialog({ columnId, onClose, onCreated }: {
-  columnId: string; onClose: () => void; onCreated: () => void;
+export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
+  columns: ColumnData[];
+  initialColumnId: string;
+  onClose: () => void;
+  onCreated: () => void;
 }) {
+  const [columnId, setColumnId] = useState(initialColumnId);
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function save() {
-    if (!title.trim()) return;
+    if (!title.trim() || saving) return;
     setSaving(true);
-    await fetch("/api/cards", {
+    const res = await fetch("/api/cards", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ columnId, title, priority: priority || undefined }),
     });
-    setSaving(false); onCreated(); onClose();
+    setSaving(false);
+    if (!res.ok) { alert("Falha ao criar card"); return; }
+    onCreated(); onClose();
   }
 
   return (
@@ -24,7 +31,12 @@ export function CardDialog({ columnId, onClose, onCreated }: {
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 12 }}>Novo card</h3>
         <input autoFocus className={styles.input} placeholder="Título"
-          value={title} onChange={(e) => setTitle(e.target.value)} />
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); }} />
+        <select className={styles.input} value={columnId} onChange={(e) => setColumnId(e.target.value)}>
+          {columns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
         <select className={styles.input} value={priority} onChange={(e) => setPriority(e.target.value)}>
           <option value="">Sem prioridade</option>
           <option value="ALTA">Alta</option>
