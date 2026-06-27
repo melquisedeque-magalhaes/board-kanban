@@ -5,18 +5,18 @@ import {
 } from "@dnd-kit/core";
 import { Column, type ColumnData } from "./Column";
 import { applyView, isFiltering, type ViewState } from "./view";
-import styles from "./board.module.css";
 
 function findCard(cols: ColumnData[], id: string) {
   for (const c of cols) { const card = c.cards.find((x) => x.id === id); if (card) return { col: c, card }; }
   return null;
 }
 
-export function Board({ columns, setColumns, view, onAdd }: {
+export function Board({ columns, setColumns, view, onAdd, onOpen }: {
   columns: ColumnData[];
   setColumns: (c: ColumnData[]) => void;
   view: ViewState;
   onAdd: (columnId: string) => void;
+  onOpen?: (id: string) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const filtering = isFiltering(view);
@@ -69,8 +69,8 @@ export function Board({ columns, setColumns, view, onAdd }: {
       collisionDetection={closestCorners}
       onDragEnd={onDragEnd}
     >
-      <div className={styles.board}>
-        {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} />)}
+      <div className="flex items-start gap-3.5 overflow-x-auto px-10 pb-10 pt-1.5">
+        {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} />)}
       </div>
     </DndContext>
   );
