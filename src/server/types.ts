@@ -22,6 +22,7 @@ export interface UpdateCardInput {
   description?: string;
   priority?: Priority | null;
   code?: string | null;
+  dueDate?: string | Date | null;
   assignees?: string[];
   labels?: string[];
 }

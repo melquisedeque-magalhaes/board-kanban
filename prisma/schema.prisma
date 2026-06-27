@@ -37,6 +37,7 @@ model Card {
   title       String
   description String?   @db.Text
   priority    Priority?
+  dueDate     DateTime?
   position    Float
   assignees   User[]    @relation("CardAssignees")
   labels      Label[]   @relation("CardLabels")
