@@ -95,11 +95,13 @@ export async function updateCard(id: string, input: UpdateCardInput) {
   const labels = input.labels
     ? { set: (await resolveLabelIds(input.labels)).map((id) => ({ id })) }
     : undefined;
+  const dueDate =
+    input.dueDate === undefined ? undefined : input.dueDate === null ? null : new Date(input.dueDate);
   return db.card.update({
     where: { id },
     data: {
       title: input.title, description: input.description,
-      priority: input.priority, code: input.code, assignees, labels,
+      priority: input.priority, code: input.code, dueDate, assignees, labels,
     },
     include: cardInclude,
   });

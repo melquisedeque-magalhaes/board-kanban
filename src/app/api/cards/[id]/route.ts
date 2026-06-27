@@ -3,6 +3,15 @@ import { updateCard, moveCard, getCard } from "@/server/cards";
 import { requireUser } from "@/server/auth-guard";
 import { db } from "@/lib/db";
 
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const unauth = await requireUser();
+  if (unauth) return unauth;
+  const { id } = await ctx.params;
+  const card = await getCard(id);
+  if (!card) return new Response("Not found", { status: 404 });
+  return NextResponse.json(card);
+}
+
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const unauth = await requireUser();
   if (unauth) return unauth;
@@ -11,7 +20,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (body.columnId !== undefined || body.position !== undefined) {
     await moveCard(id, body.columnId, body.position);
   }
-  const hasFields = ["title", "description", "priority", "code", "assignees", "labels"]
+  const hasFields = ["title", "description", "priority", "code", "dueDate", "assignees", "labels"]
     .some((k) => k in body);
   if (hasFields) await updateCard(id, body);
   return NextResponse.json(await getCard(id));
