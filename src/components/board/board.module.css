@@ -82,13 +82,45 @@
 /* modal */
 .overlay {
   position: fixed; inset: 0;
-  background: rgba(0, 0, 0, .3);
+  background: rgba(28, 28, 28, .55);
   display: flex; align-items: center; justify-content: center;
   z-index: 50;
 }
-.dialog { background: #fff; border-radius: 10px; padding: 20px; width: 360px; }
-.input {
-  width: 100%; padding: 8px 10px;
-  border: 1px solid #e5e7eb; border-radius: 6px;
-  margin-bottom: 10px; font-size: 14px; box-sizing: border-box;
+.dialog {
+  background: #fff; border-radius: 14px; padding: 24px; width: 440px;
+  display: flex; flex-direction: column; gap: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
 }
+.dialogHead { display: flex; align-items: center; justify-content: space-between; }
+.dialogTitle { font-size: 18px; font-weight: 700; color: #37352f; margin: 0; }
+.dialogClose {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px;
+  border: none; background: #f1f1ef; color: #787774; cursor: pointer;
+}
+.dialogClose:hover { background: #e9e9e7; color: #37352f; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.fieldLabel {
+  font-size: 12px; font-weight: 600; color: #787774;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+.input {
+  width: 100%; padding: 11px 12px;
+  border: 1px solid #e3e2e0; border-radius: 8px;
+  font-size: 14px; color: #37352f; box-sizing: border-box;
+  background: #fff; outline: none;
+}
+.input::placeholder { color: #b6b5b2; }
+.input:focus { border-color: #2383e2; box-shadow: 0 0 0 1px #2383e2; }
+select.input { cursor: pointer; }
+
+.dialogFooter { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.btnGhost, .btnPrimary {
+  padding: 9px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.btnGhost { background: #fff; border: 1px solid #e3e2e0; color: #5f5e5b; font-weight: 500; }
+.btnGhost:hover { background: #f7f7f5; }
+.btnPrimary { background: #2383e2; border: none; color: #fff; font-weight: 600; padding: 9px 18px; }
+.btnPrimary:hover { background: #1a73d0; }
+.btnPrimary:disabled { opacity: .6; cursor: default; }
