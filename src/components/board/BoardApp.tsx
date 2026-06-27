@@ -1,7 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPusherClient, BOARD_CHANNEL, BOARD_CHANGED } from "@/lib/pusher-client";
 import { Board } from "./Board";
 import { Chrome, type UserLite } from "./Chrome";
 import { CardDialog } from "./CardDialog";
@@ -55,20 +54,6 @@ export function BoardApp({ initialColumns, users }: {
   );
   const refetch = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["columns"] });
-  }, [qc]);
-
-  // Push real (Pusher): assina o canal e invalida na hora que alguém muda algo.
-  // Se não houver chaves Pusher, getPusherClient() retorna null → fica só o polling.
-  useEffect(() => {
-    const pusher = getPusherClient();
-    if (!pusher) return;
-    const ch = pusher.subscribe(BOARD_CHANNEL);
-    const onChanged = () => {
-      qc.invalidateQueries({ queryKey: ["columns"] });
-      qc.invalidateQueries({ queryKey: ["card"] });
-    };
-    ch.bind(BOARD_CHANGED, onChanged);
-    return () => { ch.unbind(BOARD_CHANGED, onChanged); pusher.unsubscribe(BOARD_CHANNEL); };
   }, [qc]);
 
   return (
