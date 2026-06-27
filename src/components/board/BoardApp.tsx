@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Board } from "./Board";
 import { Chrome, type UserLite } from "./Chrome";
 import { CardDialog } from "./CardDialog";
@@ -7,61 +8,53 @@ import { CardDrawer } from "./CardDrawer";
 import type { ColumnData } from "./Column";
 import { EMPTY_VIEW, type ViewState } from "./view";
 
+async function fetchColumns(): Promise<ColumnData[]> {
+  const r = await fetch("/api/columns");
+  if (!r.ok) throw new Error("columns");
+  return r.json();
+}
+
+async function beatPresence(): Promise<UserLite[]> {
+  const r = await fetch("/api/presence", { method: "POST" });
+  if (!r.ok) return [];
+  return (await r.json()).online ?? [];
+}
+
 export function BoardApp({ initialColumns, users }: {
   initialColumns: ColumnData[];
   users: UserLite[];
 }) {
-  const [columns, setColumns] = useState<ColumnData[]>(initialColumns);
+  const qc = useQueryClient();
   const [view, setView] = useState<ViewState>(EMPTY_VIEW);
   const [createCol, setCreateCol] = useState<string | null>(null);
   const [openCard, setOpenCard] = useState<string | null>(null);
-  const [online, setOnline] = useState<UserLite[]>([]);
   const [dragging, setDragging] = useState(false);
 
-  const lastVersion = useRef<string | null>(null);
-
-  const refetch = useCallback(async () => {
-    const r = await fetch("/api/columns");
-    if (r.ok) setColumns(await r.json());
-  }, []);
-
-  // Heartbeat de presença: marca o logado e lê quem está online a cada 20s.
-  useEffect(() => {
-    let alive = true;
-    const beat = async () => {
-      try {
-        const r = await fetch("/api/presence", { method: "POST" });
-        if (alive && r.ok) setOnline((await r.json()).online ?? []);
-      } catch { /* offline */ }
-    };
-    beat();
-    const t = setInterval(beat, 20_000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
-
-  // Tempo real (polling): a cada 3s checa a versão do board; só refaz fetch
-  // quando muda. Pausa durante drag ou com dialog/drawer aberto (não atropela).
+  // Pausa o polling/refocus quando há interação em andamento (não atropela).
   const busy = dragging || createCol !== null || openCard !== null;
-  const busyRef = useRef(busy);
-  busyRef.current = busy;
-  useEffect(() => {
-    let alive = true;
-    const poll = async () => {
-      if (busyRef.current) return;
-      try {
-        const r = await fetch("/api/board/version");
-        if (!alive || !r.ok) return;
-        const { version } = await r.json();
-        if (lastVersion.current === null) { lastVersion.current = version; return; }
-        if (version !== lastVersion.current) {
-          lastVersion.current = version;
-          await refetch();
-        }
-      } catch { /* offline */ }
-    };
-    const t = setInterval(poll, 3_000);
-    return () => { alive = false; clearInterval(t); };
-  }, [refetch]);
+
+  const { data: columns = initialColumns } = useQuery({
+    queryKey: ["columns"],
+    queryFn: fetchColumns,
+    initialData: initialColumns,
+    refetchInterval: busy ? false : 3_000,
+    refetchOnWindowFocus: !busy,
+  });
+
+  const { data: online = [] } = useQuery({
+    queryKey: ["presence"],
+    queryFn: beatPresence,
+    refetchInterval: 20_000,
+  });
+
+  // Otimista (drag): escreve direto no cache. Refetch: invalida.
+  const setColumns = useCallback(
+    (c: ColumnData[]) => qc.setQueryData(["columns"], c),
+    [qc],
+  );
+  const refetch = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["columns"] });
+  }, [qc]);
 
   return (
     <>

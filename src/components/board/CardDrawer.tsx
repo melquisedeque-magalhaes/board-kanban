@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlignLeft, Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
 } from "lucide-react";
@@ -68,18 +69,17 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [card, setCard] = useState<CardDetail | null>(null);
+  const qc = useQueryClient();
   const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!cardId) { setCard(null); return; }
-    setLoading(true);
-    fetch(`/api/cards/${cardId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((c) => setCard(c))
-      .finally(() => setLoading(false));
-  }, [cardId]);
+  const { data: card = null, isLoading: loading } = useQuery({
+    queryKey: ["card", cardId],
+    enabled: !!cardId,
+    queryFn: async (): Promise<CardDetail | null> => {
+      const r = await fetch(`/api/cards/${cardId}`);
+      return r.ok ? r.json() : null;
+    },
+  });
 
   async function patch(data: Record<string, unknown>) {
     if (!cardId) return;
@@ -88,7 +88,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
       body: JSON.stringify(data),
     });
     if (!res.ok) { toast.error("Falha ao salvar"); return; }
-    setCard(await res.json());
+    qc.setQueryData(["card", cardId], await res.json());
     onChanged();
   }
 
@@ -100,7 +100,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
     });
     if (!res.ok) { toast.error("Falha ao comentar"); return; }
     setComment("");
-    setCard(await res.json());
+    qc.setQueryData(["card", cardId], await res.json());
     onChanged();
   }
 

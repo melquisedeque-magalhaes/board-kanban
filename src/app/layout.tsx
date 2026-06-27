@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -21,10 +22,12 @@ export default function RootLayout({
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <ClerkProvider>
-            {children}
-            <Toaster />
-          </ClerkProvider>
+          <QueryProvider>
+            <ClerkProvider>
+              {children}
+              <Toaster />
+            </ClerkProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>
