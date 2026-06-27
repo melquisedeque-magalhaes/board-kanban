@@ -1,34 +1,32 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
-  Users, Table, Columns3, Funnel, ArrowUpDown, Zap, Sun, Search,
+  Users, Table, Columns3, Funnel, ArrowUpDown, Zap, Search,
   SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { avatarColor, initials } from "./colors";
 import { activeFilterCount, type ViewState, type SortMode } from "./view";
-import styles from "./chrome.module.css";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 export interface UserLite { id: string; name: string; avatarUrl?: string | null; }
 
-function Avatar({ name, url, size = 26 }: { name: string; url?: string | null; size?: number }) {
-  if (url) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- avatar externo do Clerk; next/image exigiria remotePatterns
-      <img
-        src={url} alt={name} title={name}
-        className={styles.topAvatar}
-        style={{ width: size, height: size, objectFit: "cover" }}
-      />
-    );
-  }
+function UserAvatar({ name, url, className }: { name: string; url?: string | null; className?: string }) {
   return (
-    <span
-      className={styles.topAvatar} title={name}
-      style={{ width: size, height: size, background: avatarColor(name), color: "#fff", fontSize: size * 0.4 }}
-    >
-      {initials(name)}
-    </span>
+    <Avatar className={className ?? "size-[26px] border-2 border-background"} title={name}>
+      {url ? <AvatarImage src={url} alt={name} className="object-cover" /> : null}
+      <AvatarFallback className="text-[10px] font-semibold text-white" style={{ background: avatarColor(name) }}>
+        {initials(name)}
+      </AvatarFallback>
+    </Avatar>
   );
 }
 
@@ -39,20 +37,8 @@ export function Chrome({ view, setView, users, online, onNew }: {
   online: UserLite[];
   onNew: () => void;
 }) {
-  const [pop, setPop] = useState<"filter" | "sort" | "share" | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setPop(null);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const toggle = (p: typeof pop) => setPop((cur) => (cur === p ? null : p));
   const fcount = activeFilterCount(view);
   const shown = online.slice(0, 3);
   const extra = online.length - shown.length;
@@ -66,146 +52,161 @@ export function Chrome({ view, setView, users, online, onNew }: {
   }
 
   return (
-    <header className={styles.chrome} ref={ref}>
-      <div className={styles.topbar}>
-        <div className={styles.crumb}>
-          <span className={styles.workspace}>🤖 Time de IA</span>
-          <span className={styles.sep}>/</span>
-          <span className={styles.doc}>Board Time de IA</span>
+    <header className="flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-5 py-2.5">
+        <div className="flex items-center gap-2 text-[13px]">
+          <span className="text-muted-foreground">🤖 Time de IA</span>
+          <span className="text-muted-foreground/50">/</span>
+          <span className="font-medium">Board Time de IA</span>
         </div>
-        <div className={styles.topRight}>
-          <span className={styles.edited}>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">
             {online.length > 0 ? `${online.length} online` : "Ninguém online"}
           </span>
           {shown.length > 0 && (
-            <div className={styles.avatarStack}>
-              {shown.map((a) => <Avatar key={a.id} name={a.name} url={a.avatarUrl} />)}
+            <div className="flex items-center -space-x-1.5">
+              {shown.map((a) => <UserAvatar key={a.id} name={a.name} url={a.avatarUrl} />)}
             </div>
           )}
-          {extra > 0 && <span className={styles.more}>+{extra}</span>}
-          <div className={styles.popWrap}>
-            <button className={styles.share} onClick={() => toggle("share")}>
-              <Users size={14} /> Share
-            </button>
-            {pop === "share" && (
-              <div className={styles.popover}>
-                <button className={styles.popAction} onClick={copyLink}>
-                  {copied ? <Check size={15} /> : <LinkIcon size={15} />}
+          {extra > 0 && <span className="text-xs text-muted-foreground">+{extra}</span>}
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm"><Users data-icon="inline-start" /> Share</Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72">
+              <div className="flex flex-col gap-1">
+                <Button variant="ghost" size="sm" className="justify-start" onClick={copyLink}>
+                  {copied ? <Check data-icon="inline-start" /> : <LinkIcon data-icon="inline-start" />}
                   {copied ? "Link copiado!" : "Copiar link do board"}
-                </button>
-                <div className={styles.popLabel}>Membros ({users.length})</div>
-                <div className={styles.memberList}>
+                </Button>
+                <div className="px-2 pt-2 text-xs font-medium text-muted-foreground">Membros ({users.length})</div>
+                <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
                   {users.map((u) => {
                     const isOn = online.some((o) => o.name === u.name);
                     return (
-                      <div key={u.id} className={styles.member}>
-                        <Avatar name={u.name} url={u.avatarUrl} size={22} />
-                        <span>{u.name}</span>
-                        {isOn && <span className={styles.onlineDot} title="online" />}
+                      <div key={u.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm">
+                        <UserAvatar name={u.name} url={u.avatarUrl} className="size-[22px]" />
+                        <span className="flex-1 truncate">{u.name}</span>
+                        {isOn && <span className="size-2 rounded-full bg-emerald-500" title="online" />}
                       </div>
                     );
                   })}
                 </div>
               </div>
-            )}
-          </div>
+            </PopoverContent>
+          </Popover>
+
+          <ThemeToggle />
           <UserButton />
         </div>
       </div>
 
-      <div className={styles.header}>
-        <h1 className={styles.title}>Board Time de IA</h1>
-        <p className={styles.subtitle}>Kanban de tarefas do time de IA</p>
+      {/* Title */}
+      <div className="flex flex-col gap-1 px-10 pb-1 pt-4">
+        <h1 className="text-3xl font-bold tracking-tight">Board Time de IA</h1>
+        <p className="text-sm text-muted-foreground">Kanban de tarefas do time de IA</p>
       </div>
 
-      <div className={styles.toolbar}>
-        <div className={styles.tabs}>
-          <span className={styles.tab}><Table size={15} /> Default view</span>
-          <span className={`${styles.tab} ${styles.tabActive}`}><Columns3 size={15} /> Kanban</span>
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-10 py-2">
+        <div className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground">
+            <Table className="size-4" /> Default view
+          </span>
+          <span className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5 text-sm font-medium">
+            <Columns3 className="size-4" /> Kanban
+          </span>
         </div>
-        <div className={styles.toolRight}>
+        <div className="flex items-center gap-1">
           {/* Filtro */}
-          <div className={styles.popWrap}>
-            <button
-              className={`${styles.iconBtn} ${fcount ? styles.iconActive : ""}`}
-              onClick={() => toggle("filter")} title="Filtrar"
-            >
-              <Funnel size={16} />
-              {fcount > 0 && <span className={styles.badge}>{fcount}</span>}
-            </button>
-            {pop === "filter" && (
-              <div className={styles.popover}>
-                <div className={styles.popLabel}>Prioridade</div>
-                <select className={styles.popSelect} value={view.priority ?? ""}
-                  onChange={(e) => setView({ ...view, priority: (e.target.value || null) as ViewState["priority"] })}>
-                  <option value="">Todas</option>
-                  <option value="ALTA">Alta</option>
-                  <option value="MEDIA">Média</option>
-                  <option value="BAIXA">Baixa</option>
-                </select>
-                <div className={styles.popLabel}>Responsável</div>
-                <select className={styles.popSelect} value={view.assignee ?? ""}
-                  onChange={(e) => setView({ ...view, assignee: e.target.value || null })}>
-                  <option value="">Todos</option>
-                  {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant={fcount ? "secondary" : "ghost"} size="icon" title="Filtrar" className="relative">
+                <Funnel />
                 {fcount > 0 && (
-                  <button className={styles.popAction}
-                    onClick={() => setView({ ...view, priority: null, assignee: null })}>
-                    <X size={14} /> Limpar filtros
-                  </button>
+                  <Badge className="absolute -right-1 -top-1 size-4 justify-center rounded-full p-0 text-[10px]">{fcount}</Badge>
                 )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex w-60 flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Prioridade</span>
+                <Select value={view.priority ?? "all"}
+                  onValueChange={(v) => setView({ ...view, priority: (v === "all" ? null : v) as ViewState["priority"] })}>
+                  <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="ALTA">Alta</SelectItem>
+                      <SelectItem value="MEDIA">Média</SelectItem>
+                      <SelectItem value="BAIXA">Baixa</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Responsável</span>
+                <Select value={view.assignee ?? "all"}
+                  onValueChange={(v) => setView({ ...view, assignee: v === "all" ? null : v })}>
+                  <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              {fcount > 0 && (
+                <Button variant="ghost" size="sm" className="justify-start"
+                  onClick={() => setView({ ...view, priority: null, assignee: null })}>
+                  <X data-icon="inline-start" /> Limpar filtros
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
 
           {/* Ordenar */}
-          <div className={styles.popWrap}>
-            <button
-              className={`${styles.iconBtn} ${view.sort !== "manual" ? styles.iconActive : ""}`}
-              onClick={() => toggle("sort")} title="Ordenar"
-            >
-              <ArrowUpDown size={16} />
-            </button>
-            {pop === "sort" && (
-              <div className={styles.popover}>
-                {([["manual", "Manual"], ["priority", "Prioridade"], ["title", "Título (A–Z)"]] as [SortMode, string][])
-                  .map(([k, label]) => (
-                    <button key={k} className={styles.popAction}
-                      onClick={() => { setView({ ...view, sort: k }); setPop(null); }}>
-                      {view.sort === k ? <Check size={15} /> : <span style={{ width: 15 }} />}
-                      {label}
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant={view.sort !== "manual" ? "secondary" : "ghost"} size="icon" title="Ordenar">
+                <ArrowUpDown />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex w-44 flex-col gap-0.5">
+              {([["manual", "Manual"], ["priority", "Prioridade"], ["title", "Título (A–Z)"]] as [SortMode, string][])
+                .map(([k, label]) => (
+                  <Button key={k} variant="ghost" size="sm" className="justify-start"
+                    onClick={() => setView({ ...view, sort: k })}>
+                    {view.sort === k ? <Check data-icon="inline-start" /> : <span className="size-4" />}
+                    {label}
+                  </Button>
+                ))}
+            </PopoverContent>
+          </Popover>
 
-          <Zap size={16} className={styles.toolIcon} />
-          <Sun size={16} className={styles.toolIcon} />
+          <Button variant="ghost" size="icon" title="Automações"><Zap /></Button>
 
           {/* Busca */}
-          <div className={styles.searchWrap}>
-            {searchOpen ? (
-              <input
-                autoFocus className={styles.searchInput} placeholder="Buscar card…"
-                value={view.query}
-                onChange={(e) => setView({ ...view, query: e.target.value })}
-                onBlur={() => { if (!view.query) setSearchOpen(false); }}
-                onKeyDown={(e) => { if (e.key === "Escape") { setView({ ...view, query: "" }); setSearchOpen(false); } }}
-              />
-            ) : (
-              <button className={`${styles.iconBtn} ${view.query ? styles.iconActive : ""}`}
-                onClick={() => setSearchOpen(true)} title="Buscar">
-                <Search size={16} />
-              </button>
-            )}
-          </div>
+          {searchOpen ? (
+            <Input
+              autoFocus className="h-8 w-44" placeholder="Buscar card…"
+              value={view.query}
+              onChange={(e) => setView({ ...view, query: e.target.value })}
+              onBlur={() => { if (!view.query) setSearchOpen(false); }}
+              onKeyDown={(e) => { if (e.key === "Escape") { setView({ ...view, query: "" }); setSearchOpen(false); } }}
+            />
+          ) : (
+            <Button variant={view.query ? "secondary" : "ghost"} size="icon" title="Buscar"
+              onClick={() => setSearchOpen(true)}>
+              <Search />
+            </Button>
+          )}
 
-          <SlidersHorizontal size={16} className={styles.toolIcon} />
-          <button className={styles.newBtn} onClick={onNew}>
-            New <ChevronDown size={14} />
-          </button>
+          <Button variant="ghost" size="icon" title="Opções"><SlidersHorizontal /></Button>
+          <Button size="sm" onClick={onNew}>New <ChevronDown data-icon="inline-end" /></Button>
         </div>
       </div>
     </header>
