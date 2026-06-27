@@ -206,7 +206,9 @@ export function Chrome({ view, setView, users, online, onNew }: {
           )}
 
           <Button variant="ghost" size="icon" title="Opções"><SlidersHorizontal /></Button>
-          <Button size="sm" onClick={onNew}>New <ChevronDown data-icon="inline-end" /></Button>
+          <Button size="sm" onClick={onNew} className="bg-[#2383e2] text-white hover:bg-[#1a6fc4]">
+            New <ChevronDown data-icon="inline-end" />
+          </Button>
         </div>
       </div>
     </header>
