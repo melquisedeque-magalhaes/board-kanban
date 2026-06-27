@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  AlignLeft, Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check,
+  AlignLeft, Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
@@ -20,7 +20,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 
 interface Comment {
   id: string;
@@ -49,14 +48,18 @@ const PR_OPTS = [
 
 function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-1">
-      <div className="flex w-32 shrink-0 items-center gap-2 pt-1.5 text-sm text-muted-foreground">
+    <div className="flex items-start gap-2">
+      <div className="flex w-28 shrink-0 items-center gap-2 py-2 text-sm text-muted-foreground">
         <Icon className="size-4" /> {label}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
+
+// Campo inline estilo Notion: transparente, hover, placeholder alinhado.
+const inlineField =
+  "w-full rounded-md bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground hover:bg-accent focus:bg-accent focus:ring-0";
 
 export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
   cardId: string | null;
@@ -135,22 +138,23 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
               </SheetTitle>
             </SheetHeader>
 
-            <div className="flex flex-col gap-0.5 px-8 py-2">
+            <div className="flex flex-col gap-1 px-8 py-2">
               <Row icon={AlignLeft} label="Notas">
-                <Textarea
+                <textarea
                   defaultValue={card.description ?? ""}
-                  placeholder="Vazio"
+                  placeholder="Adicione notas, contexto, links…"
+                  rows={2}
                   onBlur={(e) => { if ((e.target.value || null) !== card.description) patch({ description: e.target.value || null }); }}
-                  className="min-h-9 resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                  className={inlineField + " min-h-9 resize-y"}
                 />
               </Row>
 
               <Row icon={Hash} label="Chave">
-                <Input
+                <input
                   defaultValue={card.code ?? ""}
-                  placeholder="Vazio"
+                  placeholder="Ex.: TI-42"
                   onBlur={(e) => { if ((e.target.value || null) !== card.code) patch({ code: e.target.value || null }); }}
-                  className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                  className={inlineField}
                 />
               </Row>
 
@@ -159,7 +163,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                   value={card.priority ?? "none"}
                   onValueChange={(v) => patch({ priority: v === "none" ? null : v })}
                 >
-                  <SelectTrigger size="sm" className="w-40 border-0 bg-transparent shadow-none"><SelectValue /></SelectTrigger>
+                  <SelectTrigger size="sm" className="w-40 border-0 bg-transparent shadow-none hover:bg-accent"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
                       {PR_OPTS.map((o) => <SelectItem key={o.v} value={o.v}>{o.label}</SelectItem>)}
@@ -171,25 +175,29 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
               <Row icon={UsersIcon} label="Responsável">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 justify-start gap-1.5 px-2 font-normal">
+                    <button className={inlineField + " flex flex-wrap items-center gap-1.5 text-left"}>
                       {card.assignees.length === 0 ? (
-                        <span className="text-muted-foreground">Vazio</span>
+                        <span className="text-muted-foreground">Adicionar responsável…</span>
                       ) : (
-                        card.assignees.map((a) => (
-                          <span key={a.id} className="flex items-center gap-1.5">
-                            <Avatar className="size-5">
-                              {a.avatarUrl ? <AvatarImage src={a.avatarUrl} alt={a.name} /> : null}
-                              <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(a.name) }}>
-                                {initials(a.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            {a.name}
-                          </span>
-                        ))
+                        <>
+                          {card.assignees.map((a) => (
+                            <span key={a.id} className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-2">
+                              <Avatar className="size-5">
+                                {a.avatarUrl ? <AvatarImage src={a.avatarUrl} alt={a.name} /> : null}
+                                <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(a.name) }}>
+                                  {initials(a.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs">{a.name}</span>
+                            </span>
+                          ))}
+                          <Plus className="size-3.5 text-muted-foreground" />
+                        </>
                       )}
-                    </Button>
+                    </button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-56 p-1">
+                  <PopoverContent align="start" className="w-60 p-1">
+                    <div className="px-2 py-1 text-xs text-muted-foreground">Selecione um ou mais</div>
                     {users.map((u) => {
                       const sel = card.assignees.some((a) => a.id === u.id);
                       return (
@@ -213,7 +221,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
 
               <Row icon={CircleDot} label="Status">
                 <Select value={card.columnId} onValueChange={(v) => patch({ columnId: v })}>
-                  <SelectTrigger size="sm" className="w-52 border-0 bg-transparent shadow-none">
+                  <SelectTrigger size="sm" className="w-52 border-0 bg-transparent shadow-none hover:bg-accent">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -234,11 +242,11 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
               </Row>
 
               <Row icon={CalendarDays} label="Prazo">
-                <Input
+                <input
                   type="date"
                   defaultValue={due}
                   onChange={(e) => patch({ dueDate: e.target.value || null })}
-                  className="h-8 w-44 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                  className={inlineField + " w-44"}
                 />
               </Row>
             </div>

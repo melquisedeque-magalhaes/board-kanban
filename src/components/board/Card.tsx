@@ -15,34 +15,25 @@ export interface CardData {
   _count: { comments: number };
 }
 
-export function Card({
+// Visual puro do card — reusado pela versão sortable e pelo DragOverlay.
+export function CardView({
   card,
   statusName,
   statusSwatch,
-  onOpen,
+  dragging,
 }: {
   card: CardData;
   statusName: string;
   statusSwatch: Swatch;
-  onOpen?: (id: string) => void;
+  dragging?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: card.id });
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
   const pr = card.priority ? PRIORITY[card.priority] : null;
-
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={() => onOpen?.(card.id)}
-      className="flex flex-col gap-2.5 rounded-lg border bg-card p-3 text-card-foreground shadow-sm cursor-grab active:cursor-grabbing hover:border-foreground/20"
+      className={
+        "flex flex-col gap-2.5 rounded-lg border bg-card p-3 text-card-foreground hover:border-foreground/20 " +
+        (dragging ? "shadow-lg" : "shadow-sm")
+      }
     >
       <div className="text-sm leading-snug">
         {card.code ? <span className="font-medium text-muted-foreground">{card.code} · </span> : null}
@@ -88,6 +79,52 @@ export function Card({
           </span>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+export function Card({
+  card,
+  statusName,
+  statusSwatch,
+  onOpen,
+}: {
+  card: CardData;
+  statusName: string;
+  statusSwatch: Swatch;
+  onOpen?: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: card.id });
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
+
+  // Enquanto arrasta: o card "real" sobe pro DragOverlay (segue o cursor);
+  // aqui fica só a sombra/placeholder tracejado mostrando onde vai cair.
+  if (isDragging) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className="h-20 rounded-lg border-2 border-dashed border-foreground/20 bg-muted/40"
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => onOpen?.(card.id)}
+      className="cursor-grab active:cursor-grabbing"
+    >
+      <CardView card={card} statusName={statusName} statusSwatch={statusSwatch} />
     </div>
   );
 }

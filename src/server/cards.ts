@@ -136,4 +136,16 @@ export async function addComment(cardId: string, body: string, authorId?: string
 export const listUsers = () => db.user.findMany({ orderBy: { name: "asc" } });
 export const listLabels = () => db.label.findMany({ orderBy: { name: "asc" } });
 
+// Assinatura barata do estado do board para polling de tempo real.
+// Muda em edição (updatedAt), criação/exclusão (count) e comentário (commentCount).
+export async function boardVersion(): Promise<string> {
+  const [agg, cardCount, commentCount] = await Promise.all([
+    db.card.aggregate({ _max: { updatedAt: true } }),
+    db.card.count(),
+    db.comment.count(),
+  ]);
+  const ts = agg._max.updatedAt?.getTime() ?? 0;
+  return `${ts}-${cardCount}-${commentCount}`;
+}
+
 export type { CardFilter, CreateCardInput, UpdateCardInput } from "./types";
