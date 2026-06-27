@@ -65,8 +65,31 @@ export async function listCards(filter: CardFilter) {
 export function getCard(id: string) {
   return db.card.findUnique({
     where: { id },
-    include: { ...cardInclude, comments: { include: { author: true }, orderBy: { createdAt: "asc" } } },
+    include: {
+      ...cardInclude,
+      comments: { include: { author: true }, orderBy: { createdAt: "asc" } },
+      attachments: { orderBy: { createdAt: "asc" } },
+    },
   });
+}
+
+export function addAttachment(input: {
+  cardId: string; url: string; name: string; contentType?: string | null; size?: number | null;
+}) {
+  return db.attachment.create({
+    data: {
+      cardId: input.cardId, url: input.url, name: input.name,
+      contentType: input.contentType ?? null, size: input.size ?? null,
+    },
+  });
+}
+
+export function listAttachments(cardId: string) {
+  return db.attachment.findMany({ where: { cardId }, orderBy: { createdAt: "asc" } });
+}
+
+export function deleteAttachment(id: string) {
+  return db.attachment.delete({ where: { id } });
 }
 
 export async function createCard(input: CreateCardInput) {
@@ -79,7 +102,7 @@ export async function createCard(input: CreateCardInput) {
   const labelIds = await resolveLabelIds(input.labels ?? []);
   return db.card.create({
     data: {
-      columnId, title: input.title, description: input.description,
+      columnId, title: input.title, description: input.description, details: input.details,
       priority: input.priority, code: input.code, position,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
@@ -100,7 +123,7 @@ export async function updateCard(id: string, input: UpdateCardInput) {
   return db.card.update({
     where: { id },
     data: {
-      title: input.title, description: input.description,
+      title: input.title, description: input.description, details: input.details,
       priority: input.priority, code: input.code, dueDate, assignees, labels,
     },
     include: cardInclude,
@@ -139,13 +162,14 @@ export const listLabels = () => db.label.findMany({ orderBy: { name: "asc" } });
 // Assinatura barata do estado do board para polling de tempo real.
 // Muda em edição (updatedAt), criação/exclusão (count) e comentário (commentCount).
 export async function boardVersion(): Promise<string> {
-  const [agg, cardCount, commentCount] = await Promise.all([
+  const [agg, cardCount, commentCount, attachmentCount] = await Promise.all([
     db.card.aggregate({ _max: { updatedAt: true } }),
     db.card.count(),
     db.comment.count(),
+    db.attachment.count(),
   ]);
   const ts = agg._max.updatedAt?.getTime() ?? 0;
-  return `${ts}-${cardCount}-${commentCount}`;
+  return `${ts}-${cardCount}-${commentCount}-${attachmentCount}`;
 }
 
 export type { CardFilter, CreateCardInput, UpdateCardInput } from "./types";
