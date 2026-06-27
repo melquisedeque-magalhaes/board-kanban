@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { positionBetween } from "@/lib/positions";
+import { broadcastBoardChanged } from "@/lib/pusher-server";
 import type {
   CardFilter, CreateCardInput, UpdateCardInput,
 } from "./types";
@@ -77,7 +78,7 @@ export async function createCard(input: CreateCardInput) {
   const position = positionBetween(last[0]?.position ?? null, null);
   const assigneeIds = await resolveUserIds(input.assignees ?? []);
   const labelIds = await resolveLabelIds(input.labels ?? []);
-  return db.card.create({
+  const created = await db.card.create({
     data: {
       columnId, title: input.title, description: input.description,
       priority: input.priority, code: input.code, position,
@@ -86,6 +87,8 @@ export async function createCard(input: CreateCardInput) {
     },
     include: cardInclude,
   });
+  await broadcastBoardChanged();
+  return created;
 }
 
 export async function updateCard(id: string, input: UpdateCardInput) {
@@ -97,7 +100,7 @@ export async function updateCard(id: string, input: UpdateCardInput) {
     : undefined;
   const dueDate =
     input.dueDate === undefined ? undefined : input.dueDate === null ? null : new Date(input.dueDate);
-  return db.card.update({
+  const updated = await db.card.update({
     where: { id },
     data: {
       title: input.title, description: input.description,
@@ -105,6 +108,8 @@ export async function updateCard(id: string, input: UpdateCardInput) {
     },
     include: cardInclude,
   });
+  await broadcastBoardChanged();
+  return updated;
 }
 
 export async function moveCard(id: string, columnIdRef: string, position?: number) {
@@ -123,13 +128,16 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
     });
     pos = positionBetween(last[0]?.position ?? null, null);
   }
-  return db.card.update({
+  const moved = await db.card.update({
     where: { id }, data: { columnId, position: pos }, include: cardInclude,
   });
+  await broadcastBoardChanged();
+  return moved;
 }
 
 export async function addComment(cardId: string, body: string, authorId?: string) {
   const c = await db.comment.create({ data: { cardId, body, authorId } });
+  await broadcastBoardChanged();
   return { id: c.id };
 }
 
