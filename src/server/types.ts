@@ -12,6 +12,7 @@ export interface CreateCardInput {
   columnName?: string;
   title: string;
   description?: string;
+  details?: string;
   priority?: Priority;
   code?: string;
   assignees?: string[]; // nomes ou ids
@@ -20,6 +21,7 @@ export interface CreateCardInput {
 export interface UpdateCardInput {
   title?: string;
   description?: string;
+  details?: string | null;
   priority?: Priority | null;
   code?: string | null;
   dueDate?: string | Date | null;

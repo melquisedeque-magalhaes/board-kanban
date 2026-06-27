@@ -1,8 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   AlignLeft, Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
+  FileText, Paperclip, Eye, Pencil, Loader2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
@@ -28,17 +31,29 @@ interface Comment {
   createdAt: string;
   author?: { id: string; name: string; avatarUrl?: string | null } | null;
 }
+interface Attachment {
+  id: string;
+  url: string;
+  name: string;
+  contentType?: string | null;
+  size?: number | null;
+}
 interface CardDetail {
   id: string;
   columnId: string;
   code: string | null;
   title: string;
   description: string | null;
+  details: string | null;
   priority: "ALTA" | "MEDIA" | "BAIXA" | null;
   dueDate: string | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
   comments: Comment[];
+  attachments: Attachment[];
 }
+
+const isImage = (a: Attachment) =>
+  a.contentType?.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(a.name);
 
 const PR_OPTS = [
   { v: "none", label: "Vazio" },
@@ -62,6 +77,22 @@ function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: 
 const inlineField =
   "w-full rounded-md bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground hover:bg-accent focus:bg-accent focus:ring-0";
 
+// Render de markdown (descrição rica) com estilos leves p/ dark/light.
+function MarkdownView({ source }: { source: string }) {
+  return (
+    <div className="max-w-none break-words text-sm leading-relaxed [&_a]:text-primary [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_h1]:mb-2 [&_h1]:mt-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:mb-2 [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mb-1 [&_h3]:mt-2 [&_h3]:font-semibold [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-lg [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ ...p }) => <a {...p} target="_blank" rel="noreferrer" />,
+        }}
+      >
+        {source}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
   cardId: string | null;
   columns: ColumnData[];
@@ -71,6 +102,10 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
 }) {
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const detailsRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: card = null, isLoading: loading } = useQuery({
     queryKey: ["card", cardId],
@@ -104,6 +139,58 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
     onChanged();
   }
 
+  // Sobe arquivo pro Blob, registra anexo e devolve. Refaz o fetch do card.
+  async function uploadFile(file: File): Promise<Attachment | null> {
+    if (!cardId) return null;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/cards/${cardId}/attachments`, { method: "POST", body: fd });
+      if (!res.ok) {
+        const msg = res.status === 503 ? "Configure o Vercel Blob (BLOB_READ_WRITE_TOKEN)" : "Falha no upload";
+        toast.error(msg);
+        return null;
+      }
+      const att: Attachment = await res.json();
+      await qc.invalidateQueries({ queryKey: ["card", cardId] });
+      onChanged();
+      return att;
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // Insere markdown no cursor do textarea de descrição (ou no fim).
+  function insertIntoDetails(snippet: string) {
+    const el = detailsRef.current;
+    const current = card?.details ?? "";
+    if (!el) { patch({ details: (current ? current + "\n" : "") + snippet }); return; }
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const next = el.value.slice(0, start) + snippet + el.value.slice(end);
+    el.value = next;
+    el.focus();
+    const pos = start + snippet.length;
+    el.setSelectionRange(pos, pos);
+  }
+
+  // Faz upload e insere a imagem como markdown (ou link, se não for imagem).
+  async function uploadAndInsert(file: File) {
+    const att = await uploadFile(file);
+    if (!att) return;
+    const md = isImage(att) ? `![${att.name}](${att.url})` : `[${att.name}](${att.url})`;
+    insertIntoDetails(md + "\n");
+  }
+
+  async function deleteAttachment(attId: string) {
+    if (!cardId) return;
+    const res = await fetch(`/api/cards/${cardId}/attachments/${attId}`, { method: "DELETE" });
+    if (!res.ok) { toast.error("Falha ao remover anexo"); return; }
+    await qc.invalidateQueries({ queryKey: ["card", cardId] });
+    onChanged();
+  }
+
   function toggleAssignee(userId: string) {
     if (!card) return;
     const has = card.assignees.some((a) => a.id === userId);
@@ -127,13 +214,13 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
           </div>
         ) : (
           <>
-            <SheetHeader className="px-8 pb-2 pt-8">
+            <SheetHeader className="px-8 pb-3 pt-8">
               <SheetTitle asChild>
                 <textarea
                   defaultValue={card.title}
                   onBlur={(e) => { if (e.target.value !== card.title) patch({ title: e.target.value }); }}
                   rows={1}
-                  className="w-full resize-none border-0 bg-transparent p-0 text-2xl font-bold leading-tight outline-none focus:ring-0"
+                  className="w-full resize-none border-0 bg-transparent p-0 text-3xl font-bold leading-snug outline-none [field-sizing:content] focus:ring-0"
                 />
               </SheetTitle>
             </SheetHeader>
@@ -143,9 +230,9 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                 <textarea
                   defaultValue={card.description ?? ""}
                   placeholder="Adicione notas, contexto, links…"
-                  rows={2}
+                  rows={3}
                   onBlur={(e) => { if ((e.target.value || null) !== card.description) patch({ description: e.target.value || null }); }}
-                  className={inlineField + " min-h-9 resize-y"}
+                  className={inlineField + " min-h-20 resize-y leading-relaxed [field-sizing:content]"}
                 />
               </Row>
 
@@ -249,6 +336,106 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                   className={inlineField + " w-44"}
                 />
               </Row>
+            </div>
+
+            <Separator />
+
+            {/* Descrição rica (markdown + imagens + anexos) */}
+            <div className="flex flex-col gap-2 px-8 py-5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <FileText className="size-4" /> Descrição
+                </span>
+                <div className="flex items-center gap-1">
+                  {uploading && <Loader2 className="mr-1 size-4 animate-spin text-muted-foreground" />}
+                  <Button
+                    variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Paperclip className="size-3.5" /> Anexar
+                  </Button>
+                  {card.details ? (
+                    <Button
+                      variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs"
+                      onClick={() => setEditingDetails((v) => !v)}
+                    >
+                      {editingDetails ? <><Eye className="size-3.5" /> Visualizar</> : <><Pencil className="size-3.5" /> Editar</>}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadAndInsert(f);
+                  e.target.value = "";
+                }}
+              />
+
+              {editingDetails || !card.details ? (
+                <textarea
+                  ref={detailsRef}
+                  defaultValue={card.details ?? ""}
+                  placeholder="Descreva a task em markdown. Cole ou arraste imagens para anexar…"
+                  rows={6}
+                  onBlur={(e) => { if ((e.target.value || null) !== card.details) patch({ details: e.target.value || null }); }}
+                  onPaste={(e) => {
+                    const file = Array.from(e.clipboardData.files)[0];
+                    if (file) { e.preventDefault(); uploadAndInsert(file); }
+                  }}
+                  onDrop={(e) => {
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) { e.preventDefault(); uploadAndInsert(file); }
+                  }}
+                  className="min-h-32 w-full resize-y rounded-md bg-muted/40 p-3 font-mono text-sm leading-relaxed outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring [field-sizing:content]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingDetails(true)}
+                  className="cursor-text rounded-md p-3 text-left hover:bg-accent/50"
+                >
+                  <MarkdownView source={card.details} />
+                </button>
+              )}
+
+              {/* Anexos */}
+              {card.attachments.length > 0 && (
+                <div className="mt-1 flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Anexos</span>
+                  <div className="flex flex-wrap gap-2">
+                    {card.attachments.map((a) => (
+                      <div key={a.id} className="group relative">
+                        {isImage(a) ? (
+                          <a href={a.url} target="_blank" rel="noreferrer" className="block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={a.url} alt={a.name} className="h-20 w-20 rounded-md border object-cover" />
+                          </a>
+                        ) : (
+                          <a
+                            href={a.url} target="_blank" rel="noreferrer"
+                            className="flex h-20 w-32 flex-col justify-center gap-1 rounded-md border bg-muted/40 p-2 text-xs hover:bg-accent"
+                          >
+                            <Paperclip className="size-4 text-muted-foreground" />
+                            <span className="truncate">{a.name}</span>
+                          </a>
+                        )}
+                        <button
+                          onClick={() => deleteAttachment(a.id)}
+                          className="absolute -right-1.5 -top-1.5 hidden rounded-full bg-destructive p-0.5 text-white group-hover:block"
+                          aria-label="Remover anexo"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />

@@ -47,7 +47,8 @@ export function buildMcpServer() {
         columnId: z.string().optional(),
         columnName: z.string().optional(),
         title: z.string(),
-        description: z.string().optional(),
+        description: z.string().optional().describe("Notas curtas"),
+        details: z.string().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
@@ -64,7 +65,8 @@ export function buildMcpServer() {
       inputSchema: {
         id: z.string(),
         title: z.string().optional(),
-        description: z.string().optional(),
+        description: z.string().optional().describe("Notas curtas"),
+        details: z.string().nullable().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
@@ -107,6 +109,31 @@ export function buildMcpServer() {
       const ids = actor ? await cards.resolveUserIds([actor]) : [];
       return json(await cards.addComment(cardId, body, ids[0]));
     },
+  );
+
+  s.registerTool(
+    "add_attachment",
+    {
+      description: "Anexa um arquivo/imagem (por URL) a um card. Use a URL no markdown do campo details para exibir imagens.",
+      inputSchema: {
+        cardId: z.string(),
+        url: z.string().describe("URL pública do arquivo/imagem"),
+        name: z.string().describe("Nome do arquivo (ex.: print.png)"),
+        contentType: z.string().optional(),
+        size: z.number().optional(),
+      },
+    },
+    async ({ cardId, url, name, contentType, size }) =>
+      json(await cards.addAttachment({ cardId, url, name, contentType, size })),
+  );
+
+  s.registerTool(
+    "list_attachments",
+    {
+      description: "Lista anexos de um card",
+      inputSchema: { cardId: z.string() },
+    },
+    async ({ cardId }) => json(await cards.listAttachments(cardId)),
   );
 
   s.registerTool(

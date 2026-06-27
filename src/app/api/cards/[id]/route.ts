@@ -20,7 +20,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (body.columnId !== undefined || body.position !== undefined) {
     await moveCard(id, body.columnId, body.position);
   }
-  const hasFields = ["title", "description", "priority", "code", "dueDate", "assignees", "labels"]
+  const hasFields = ["title", "description", "details", "priority", "code", "dueDate", "assignees", "labels"]
     .some((k) => k in body);
   if (hasFields) await updateCard(id, body);
   return NextResponse.json(await getCard(id));
