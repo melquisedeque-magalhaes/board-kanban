@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Board } from "./Board";
 import { Chrome, type UserLite } from "./Chrome";
 import { CardDialog } from "./CardDialog";
@@ -16,6 +16,9 @@ export function BoardApp({ initialColumns, users }: {
   const [createCol, setCreateCol] = useState<string | null>(null);
   const [openCard, setOpenCard] = useState<string | null>(null);
   const [online, setOnline] = useState<UserLite[]>([]);
+  const [dragging, setDragging] = useState(false);
+
+  const lastVersion = useRef<string | null>(null);
 
   const refetch = useCallback(async () => {
     const r = await fetch("/api/columns");
@@ -36,6 +39,30 @@ export function BoardApp({ initialColumns, users }: {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
+  // Tempo real (polling): a cada 3s checa a versão do board; só refaz fetch
+  // quando muda. Pausa durante drag ou com dialog/drawer aberto (não atropela).
+  const busy = dragging || createCol !== null || openCard !== null;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      if (busyRef.current) return;
+      try {
+        const r = await fetch("/api/board/version");
+        if (!alive || !r.ok) return;
+        const { version } = await r.json();
+        if (lastVersion.current === null) { lastVersion.current = version; return; }
+        if (version !== lastVersion.current) {
+          lastVersion.current = version;
+          await refetch();
+        }
+      } catch { /* offline */ }
+    };
+    const t = setInterval(poll, 3_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [refetch]);
+
   return (
     <>
       <Chrome
@@ -45,7 +72,14 @@ export function BoardApp({ initialColumns, users }: {
         online={online}
         onNew={() => setCreateCol(columns[0]?.id ?? null)}
       />
-      <Board columns={columns} setColumns={setColumns} view={view} onAdd={setCreateCol} onOpen={setOpenCard} />
+      <Board
+        columns={columns}
+        setColumns={setColumns}
+        view={view}
+        onAdd={setCreateCol}
+        onOpen={setOpenCard}
+        onDraggingChange={setDragging}
+      />
       {createCol && (
         <CardDialog
           columns={columns}

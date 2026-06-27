@@ -1,9 +1,12 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
-  DndContext, DragEndEvent, PointerSensor, useSensor, useSensors, closestCorners,
+  DndContext, DragEndEvent, DragOverlay, DragStartEvent,
+  PointerSensor, useSensor, useSensors, closestCorners,
 } from "@dnd-kit/core";
 import { Column, type ColumnData } from "./Column";
+import { CardView } from "./Card";
+import { columnSwatch } from "./colors";
 import { applyView, isFiltering, type ViewState } from "./view";
 
 function findCard(cols: ColumnData[], id: string) {
@@ -11,18 +14,31 @@ function findCard(cols: ColumnData[], id: string) {
   return null;
 }
 
-export function Board({ columns, setColumns, view, onAdd, onOpen }: {
+export function Board({ columns, setColumns, view, onAdd, onOpen, onDraggingChange }: {
   columns: ColumnData[];
   setColumns: (c: ColumnData[]) => void;
   view: ViewState;
   onAdd: (columnId: string) => void;
   onOpen?: (id: string) => void;
+  onDraggingChange?: (dragging: boolean) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const filtering = isFiltering(view);
   const display = useMemo(() => applyView(columns, view), [columns, view]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const active = activeId ? findCard(columns, activeId) : null;
+
+  function onDragStart(e: DragStartEvent) {
+    setActiveId(String(e.active.id));
+    onDraggingChange?.(true);
+  }
+  function endDrag() {
+    setActiveId(null);
+    onDraggingChange?.(false);
+  }
 
   async function onDragEnd(e: DragEndEvent) {
+    endDrag();
     const { active, over } = e;
     if (!over) return;
     const from = findCard(columns, String(active.id));
@@ -67,11 +83,18 @@ export function Board({ columns, setColumns, view, onAdd, onOpen }: {
       id="board"
       sensors={filtering ? [] : sensors}
       collisionDetection={closestCorners}
+      onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onDragCancel={endDrag}
     >
       <div className="flex items-start gap-3.5 overflow-x-auto px-10 pb-10 pt-1.5">
         {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} />)}
       </div>
+      <DragOverlay>
+        {active ? (
+          <CardView card={active.card} statusName={active.col.name} statusSwatch={columnSwatch(active.col.name)} dragging />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
