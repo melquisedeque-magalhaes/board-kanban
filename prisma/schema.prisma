@@ -35,7 +35,6 @@ model Card {
   column      Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
   code        String?
   title       String
-  description String?   @db.Text
   details     String?   @db.Text
   priority    Priority?
   dueDate     DateTime?

@@ -47,7 +47,7 @@ export function buildMcpServer() {
         columnId: z.string().optional(),
         columnName: z.string().optional(),
         title: z.string(),
-        description: z.string().optional().describe("Notas curtas"),
+        description: z.string().optional().describe("(legado) cai em details — use details"),
         details: z.string().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
         code: z.string().optional(),
@@ -65,7 +65,7 @@ export function buildMcpServer() {
       inputSchema: {
         id: z.string(),
         title: z.string().optional(),
-        description: z.string().optional().describe("Notas curtas"),
+        description: z.string().optional().describe("(legado) cai em details — use details"),
         details: z.string().nullable().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
         code: z.string().optional(),
@@ -86,12 +86,13 @@ export function buildMcpServer() {
         columnId: z.string().optional(),
         columnName: z.string().optional(),
         position: z.number().optional(),
+        actor: z.string().optional().describe("Quem move (nome ou id) — vira responsável ao mover p/ Em Andamento"),
       },
     },
-    async ({ id, columnId, columnName, position }) => {
+    async ({ id, columnId, columnName, position, actor }) => {
       const ref = columnId ?? columnName;
       if (!ref) throw new Error("columnId ou columnName é obrigatório");
-      return json(await cards.moveCard(id, ref, position));
+      return json(await cards.moveCard(id, ref, position, actor));
     },
   );
 

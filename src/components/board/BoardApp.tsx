@@ -20,9 +20,10 @@ async function beatPresence(): Promise<UserLite[]> {
   return (await r.json()).online ?? [];
 }
 
-export function BoardApp({ initialColumns, users }: {
+export function BoardApp({ initialColumns, users, currentUser }: {
   initialColumns: ColumnData[];
   users: UserLite[];
+  currentUser: { id: string; name: string; avatarUrl: string | null } | null;
 }) {
   const qc = useQueryClient();
   const [view, setView] = useState<ViewState>(EMPTY_VIEW);
@@ -69,6 +70,7 @@ export function BoardApp({ initialColumns, users }: {
         columns={columns}
         setColumns={setColumns}
         view={view}
+        currentUser={currentUser}
         onAdd={setCreateCol}
         onOpen={setOpenCard}
         onDraggingChange={setDragging}

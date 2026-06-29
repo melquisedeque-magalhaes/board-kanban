@@ -11,7 +11,7 @@ export interface CreateCardInput {
   columnId?: string;
   columnName?: string;
   title: string;
-  description?: string;
+  description?: string; // alias legado → dobra em details
   details?: string;
   priority?: Priority;
   code?: string;
@@ -20,7 +20,7 @@ export interface CreateCardInput {
 }
 export interface UpdateCardInput {
   title?: string;
-  description?: string;
+  description?: string; // alias legado → dobra em details
   details?: string | null;
   priority?: Priority | null;
   code?: string | null;
