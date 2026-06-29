@@ -14,10 +14,11 @@ function findCard(cols: ColumnData[], id: string) {
   return null;
 }
 
-export function Board({ columns, setColumns, view, onAdd, onOpen, onDraggingChange }: {
+export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, onDraggingChange }: {
   columns: ColumnData[];
   setColumns: (c: ColumnData[]) => void;
   view: ViewState;
+  currentUser?: { id: string; name: string; avatarUrl: string | null } | null;
   onAdd: (columnId: string) => void;
   onOpen?: (id: string) => void;
   onDraggingChange?: (dragging: boolean) => void;
@@ -53,7 +54,16 @@ export function Board({ columns, setColumns, view, onAdd, onOpen, onDraggingChan
     const target = next.find((c) => c.id === overCol.id)!;
     const overIdx = target.cards.findIndex((x) => x.id === over.id);
     const insertAt = overIdx === -1 ? target.cards.length : overIdx;
-    target.cards.splice(insertAt, 0, from.card);
+
+    // Arrastou p/ "Em Andamento" → o logado vira responsável (espelha o server).
+    const assignSelf =
+      !!currentUser &&
+      /andamento/i.test(overCol.name) &&
+      !from.card.assignees.some((a) => a.id === currentUser.id);
+    const moved = assignSelf
+      ? { ...from.card, assignees: [...from.card.assignees, currentUser!] }
+      : from.card;
+    target.cards.splice(insertAt, 0, moved);
     setColumns(next);
 
     // position no cliente: meio dos vizinhos (nunca usa o próprio card como vizinho)

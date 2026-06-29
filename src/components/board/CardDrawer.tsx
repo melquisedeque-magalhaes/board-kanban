@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  AlignLeft, Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
+  Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -43,7 +43,6 @@ interface CardDetail {
   columnId: string;
   code: string | null;
   title: string;
-  description: string | null;
   details: string | null;
   priority: "ALTA" | "MEDIA" | "BAIXA" | null;
   dueDate: string | null;
@@ -202,6 +201,8 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
 
   const open = !!cardId;
   const due = card?.dueDate ? card.dueDate.slice(0, 10) : "";
+  const desc = card?.details ?? "";
+  const hasDesc = desc.trim().length > 0;
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -226,16 +227,6 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
             </SheetHeader>
 
             <div className="flex flex-col gap-1 px-8 py-2">
-              <Row icon={AlignLeft} label="Notas">
-                <textarea
-                  defaultValue={card.description ?? ""}
-                  placeholder="Adicione notas, contexto, links…"
-                  rows={3}
-                  onBlur={(e) => { if ((e.target.value || null) !== card.description) patch({ description: e.target.value || null }); }}
-                  className={inlineField + " min-h-20 resize-y leading-relaxed [field-sizing:content]"}
-                />
-              </Row>
-
               <Row icon={Hash} label="Chave">
                 <input
                   defaultValue={card.code ?? ""}
@@ -354,7 +345,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                   >
                     <Paperclip className="size-3.5" /> Anexar
                   </Button>
-                  {card.details ? (
+                  {hasDesc ? (
                     <Button
                       variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs"
                       onClick={() => setEditingDetails((v) => !v)}
@@ -376,10 +367,10 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                 }}
               />
 
-              {editingDetails || !card.details ? (
+              {editingDetails || !hasDesc ? (
                 <textarea
                   ref={detailsRef}
-                  defaultValue={card.details ?? ""}
+                  defaultValue={desc}
                   placeholder="Descreva a task em markdown. Cole ou arraste imagens para anexar…"
                   rows={6}
                   onBlur={(e) => { if ((e.target.value || null) !== card.details) patch({ details: e.target.value || null }); }}
@@ -399,7 +390,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                   onClick={() => setEditingDetails(true)}
                   className="cursor-text rounded-md p-3 text-left hover:bg-accent/50"
                 >
-                  <MarkdownView source={card.details} />
+                  <MarkdownView source={desc} />
                 </button>
               )}
 

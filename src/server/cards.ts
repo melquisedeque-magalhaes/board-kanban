@@ -102,7 +102,7 @@ export async function createCard(input: CreateCardInput) {
   const labelIds = await resolveLabelIds(input.labels ?? []);
   return db.card.create({
     data: {
-      columnId, title: input.title, description: input.description, details: input.details,
+      columnId, title: input.title, details: input.details ?? input.description,
       priority: input.priority, code: input.code, position,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
@@ -123,14 +123,14 @@ export async function updateCard(id: string, input: UpdateCardInput) {
   return db.card.update({
     where: { id },
     data: {
-      title: input.title, description: input.description, details: input.details,
+      title: input.title, details: input.details !== undefined ? input.details : input.description,
       priority: input.priority, code: input.code, dueDate, assignees, labels,
     },
     include: cardInclude,
   });
 }
 
-export async function moveCard(id: string, columnIdRef: string, position?: number) {
+export async function moveCard(id: string, columnIdRef: string, position?: number, actor?: string) {
   let columnId: string;
   if (!columnIdRef) {
     const card = await db.card.findUnique({ where: { id }, select: { columnId: true } });
@@ -146,8 +146,17 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
     });
     pos = positionBetween(last[0]?.position ?? null, null);
   }
+  // Moveu p/ "Em Andamento" + actor informado → vira responsável (connect, não remove os outros).
+  let assignees: { connect: { id: string }[] } | undefined;
+  if (actor) {
+    const col = await db.column.findUnique({ where: { id: columnId }, select: { name: true } });
+    if (col && /andamento/i.test(col.name)) {
+      const [actorId] = await resolveUserIds([actor]);
+      if (actorId) assignees = { connect: [{ id: actorId }] };
+    }
+  }
   return db.card.update({
-    where: { id }, data: { columnId, position: pos }, include: cardInclude,
+    where: { id }, data: { columnId, position: pos, assignees }, include: cardInclude,
   });
 }
 
