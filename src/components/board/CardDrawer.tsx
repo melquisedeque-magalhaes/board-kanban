@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
-  FileText, Paperclip, Eye, Pencil, Loader2, X,
+  FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
@@ -25,18 +25,19 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 
-interface Comment {
-  id: string;
-  body: string;
-  createdAt: string;
-  author?: { id: string; name: string; avatarUrl?: string | null } | null;
-}
 interface Attachment {
   id: string;
   url: string;
   name: string;
   contentType?: string | null;
   size?: number | null;
+}
+interface Comment {
+  id: string;
+  body: string;
+  createdAt: string;
+  author?: { id: string; name: string; avatarUrl?: string | null } | null;
+  attachments: Attachment[];
 }
 interface CardDetail {
   id: string;
@@ -45,6 +46,8 @@ interface CardDetail {
   title: string;
   details: string | null;
   priority: "ALTA" | "MEDIA" | "BAIXA" | null;
+  type: "BUG" | "FEATURE" | "TAREFA" | null;
+  version: string | null;
   dueDate: string | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
   comments: Comment[];
@@ -59,6 +62,13 @@ const PR_OPTS = [
   { v: "ALTA", label: "Alta" },
   { v: "MEDIA", label: "Média" },
   { v: "BAIXA", label: "Baixa" },
+];
+
+const TYPE_OPTS = [
+  { v: "none", label: "Vazio" },
+  { v: "BUG", label: "Bug" },
+  { v: "FEATURE", label: "Feature" },
+  { v: "TAREFA", label: "Tarefa" },
 ];
 
 function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
@@ -92,19 +102,30 @@ function MarkdownView({ source }: { source: string }) {
   );
 }
 
-export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
+export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchive }: {
   cardId: string | null;
   columns: ColumnData[];
   users: UserLite[];
   onClose: () => void;
   onChanged: () => void;
+  onArchive?: (id: string) => void;
 }) {
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
+  const [pendingAtts, setPendingAtts] = useState<Attachment[]>([]);
   const [editingDetails, setEditingDetails] = useState(false);
   const [uploading, setUploading] = useState(false);
   const detailsRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const commentFileRef = useRef<HTMLInputElement>(null);
+
+  // Troca de card → zera rascunho do comentário e anexos pendentes (reset em render).
+  const [prevCardId, setPrevCardId] = useState(cardId);
+  if (cardId !== prevCardId) {
+    setPrevCardId(cardId);
+    setComment("");
+    setPendingAtts([]);
+  }
 
   const { data: card = null, isLoading: loading } = useQuery({
     queryKey: ["card", cardId],
@@ -127,19 +148,20 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
   }
 
   async function addComment() {
-    if (!cardId || !comment.trim()) return;
+    if (!cardId || (!comment.trim() && pendingAtts.length === 0)) return;
     const res = await fetch(`/api/cards/${cardId}/comments`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ body: comment }),
+      body: JSON.stringify({ body: comment, attachmentIds: pendingAtts.map((a) => a.id) }),
     });
     if (!res.ok) { toast.error("Falha ao comentar"); return; }
     setComment("");
+    setPendingAtts([]);
     qc.setQueryData(["card", cardId], await res.json());
     onChanged();
   }
 
-  // Sobe arquivo pro Blob, registra anexo e devolve. Refaz o fetch do card.
-  async function uploadFile(file: File): Promise<Attachment | null> {
+  // Sobe arquivo pro Blob e registra o anexo (nível card). Sem refetch.
+  async function postAttachment(file: File): Promise<Attachment | null> {
     if (!cardId) return null;
     setUploading(true);
     try {
@@ -151,13 +173,32 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
         toast.error(msg);
         return null;
       }
-      const att: Attachment = await res.json();
-      await qc.invalidateQueries({ queryKey: ["card", cardId] });
-      onChanged();
-      return att;
+      return (await res.json()) as Attachment;
     } finally {
       setUploading(false);
     }
+  }
+
+  // Upload p/ a descrição: registra e refaz o fetch do card.
+  async function uploadFile(file: File): Promise<Attachment | null> {
+    const att = await postAttachment(file);
+    if (!att) return null;
+    await qc.invalidateQueries({ queryKey: ["card", cardId] });
+    onChanged();
+    return att;
+  }
+
+  // Upload de print no comentário: fica pendente até enviar (vincula no envio).
+  async function attachToComment(file: File) {
+    const att = await postAttachment(file);
+    if (att) setPendingAtts((prev) => [...prev, att]);
+  }
+
+  // Remove um anexo pendente (ainda sem comentário) do Blob + DB.
+  async function removePending(attId: string) {
+    if (!cardId) return;
+    setPendingAtts((prev) => prev.filter((a) => a.id !== attId));
+    await fetch(`/api/cards/${cardId}/attachments/${attId}`, { method: "DELETE" });
   }
 
   // Insere markdown no cursor do textarea de descrição (ou no fim).
@@ -248,6 +289,29 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+              </Row>
+
+              <Row icon={Tag} label="Tipo">
+                <Select
+                  value={card.type ?? "none"}
+                  onValueChange={(v) => patch({ type: v === "none" ? null : v })}
+                >
+                  <SelectTrigger size="sm" className="w-40 border-0 bg-transparent shadow-none hover:bg-accent"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {TYPE_OPTS.map((o) => <SelectItem key={o.v} value={o.v}>{o.label}</SelectItem>)}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Row>
+
+              <Row icon={GitBranch} label="Versão">
+                <input
+                  defaultValue={card.version ?? ""}
+                  placeholder="Ex.: 2.3.1"
+                  onBlur={(e) => { if ((e.target.value || null) !== card.version) patch({ version: e.target.value || null }); }}
+                  className={inlineField}
+                />
               </Row>
 
               <Row icon={UsersIcon} label="Responsável">
@@ -446,24 +510,104 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged }: {
                           {initials(c.author?.name ?? "?")}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex min-w-0 flex-col gap-1">
                         <span className="text-xs font-medium">{c.author?.name ?? "Alguém"}</span>
-                        <span className="text-sm">{c.body}</span>
+                        {c.body ? <span className="text-sm whitespace-pre-wrap break-words">{c.body}</span> : null}
+                        {c.attachments?.length > 0 && (
+                          <div className="mt-0.5 flex flex-wrap gap-2">
+                            {c.attachments.map((a) =>
+                              isImage(a) ? (
+                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={a.url} alt={a.name} className="max-h-40 rounded-md border object-cover" />
+                                </a>
+                              ) : (
+                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer"
+                                  className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs hover:bg-accent">
+                                  <Paperclip className="size-3.5" /> <span className="truncate">{a.name}</span>
+                                </a>
+                              ),
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               </ScrollArea>
+
+              {pendingAtts.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {pendingAtts.map((a) => (
+                    <div key={a.id} className="group relative">
+                      {isImage(a) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={a.url} alt={a.name} className="h-16 w-16 rounded-md border object-cover" />
+                      ) : (
+                        <div className="flex h-16 w-24 flex-col justify-center gap-1 rounded-md border bg-muted/40 p-2 text-xs">
+                          <Paperclip className="size-4 text-muted-foreground" />
+                          <span className="truncate">{a.name}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => removePending(a.id)}
+                        className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-white"
+                        aria-label="Remover anexo"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
+                <input
+                  ref={commentFileRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) attachToComment(f);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="ghost" size="icon" className="size-9 shrink-0"
+                  onClick={() => commentFileRef.current?.click()}
+                  disabled={uploading}
+                  aria-label="Anexar imagem ao comentário"
+                >
+                  {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+                </Button>
                 <Input
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") addComment(); }}
-                  placeholder="Adicionar um comentário…"
+                  onPaste={(e) => {
+                    const file = Array.from(e.clipboardData.files)[0];
+                    if (file) { e.preventDefault(); attachToComment(file); }
+                  }}
+                  placeholder="Comente ou cole um print (Ctrl+V)…"
                   className="h-9"
                 />
-                <Button size="sm" onClick={addComment} disabled={!comment.trim()}>Enviar</Button>
+                <Button size="sm" onClick={addComment} disabled={!comment.trim() && pendingAtts.length === 0}>
+                  Enviar
+                </Button>
               </div>
+
+              {onArchive && (
+                <>
+                  <Separator className="my-1" />
+                  <Button
+                    variant="ghost" size="sm"
+                    className="h-8 gap-1.5 self-start px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => { onArchive(card.id); onClose(); }}
+                  >
+                    <Archive className="size-3.5" /> Arquivar card
+                  </Button>
+                </>
+              )}
             </div>
           </>
         )}

@@ -25,7 +25,7 @@ export async function resolveColumnId(ref: { columnId?: string; columnName?: str
 export async function resolveUserIds(refs: string[]): Promise<string[]> {
   if (!refs.length) return [];
   const users = await db.user.findMany({
-    where: { OR: [{ id: { in: refs } }, { name: { in: refs } }] },
+    where: { OR: [{ id: { in: refs } }, { name: { in: refs } }, { email: { in: refs } }] },
   });
   return users.map((u) => u.id);
 }
@@ -41,7 +41,10 @@ async function resolveLabelIds(refs: string[]): Promise<string[]> {
 export async function listColumns() {
   return db.column.findMany({
     orderBy: { position: "asc" },
-    include: { cards: { orderBy: { position: "asc" }, include: cardInclude } },
+    include: {
+      // Board não mostra cards arquivados.
+      cards: { where: { archivedAt: null }, orderBy: { position: "asc" }, include: cardInclude },
+    },
   });
 }
 
@@ -51,10 +54,14 @@ export async function listCards(filter: CardFilter) {
     : undefined);
   return db.card.findMany({
     where: {
+      archivedAt: null,
       ...(columnId ? { columnId } : {}),
       ...(filter.priority ? { priority: filter.priority } : {}),
+      ...(filter.type ? { type: filter.type } : {}),
       ...(filter.assignee
-        ? { assignees: { some: { OR: [{ id: filter.assignee }, { name: filter.assignee }] } } }
+        ? { assignees: { some: { OR: [
+            { id: filter.assignee }, { name: filter.assignee }, { email: filter.assignee },
+          ] } } }
         : {}),
     },
     orderBy: [{ columnId: "asc" }, { position: "asc" }],
@@ -67,29 +74,103 @@ export function getCard(id: string) {
     where: { id },
     include: {
       ...cardInclude,
-      comments: { include: { author: true }, orderBy: { createdAt: "asc" } },
-      attachments: { orderBy: { createdAt: "asc" } },
+      comments: {
+        include: {
+          author: true,
+          attachments: { orderBy: { createdAt: "asc" } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      // Anexos do card (não os de comentário) — comentários trazem os seus.
+      attachments: { where: { commentId: null }, orderBy: { createdAt: "asc" } },
     },
   });
 }
 
 export function addAttachment(input: {
-  cardId: string; url: string; name: string; contentType?: string | null; size?: number | null;
+  cardId: string; url: string; name: string;
+  contentType?: string | null; size?: number | null; commentId?: string | null;
 }) {
   return db.attachment.create({
     data: {
       cardId: input.cardId, url: input.url, name: input.name,
       contentType: input.contentType ?? null, size: input.size ?? null,
+      commentId: input.commentId ?? null,
     },
   });
 }
 
+// Anexos a nível de card (commentId null). Os de comentário vêm via getCard.
 export function listAttachments(cardId: string) {
-  return db.attachment.findMany({ where: { cardId }, orderBy: { createdAt: "asc" } });
+  return db.attachment.findMany({
+    where: { cardId, commentId: null }, orderBy: { createdAt: "asc" },
+  });
+}
+
+export function getAttachment(id: string) {
+  return db.attachment.findUnique({ where: { id } });
 }
 
 export function deleteAttachment(id: string) {
   return db.attachment.delete({ where: { id } });
+}
+
+// Apaga o card. Cascade remove comments/attachments no DB; devolve as URLs
+// dos blobs (card + comentários) p/ a rota limpar o Vercel Blob (best-effort).
+export async function deleteCard(id: string): Promise<{ urls: string[] } | null> {
+  const card = await db.card.findUnique({
+    where: { id },
+    include: {
+      attachments: { select: { url: true } },
+      comments: { select: { attachments: { select: { url: true } } } },
+    },
+  });
+  if (!card) return null;
+  const urls = [
+    ...card.attachments.map((a) => a.url),
+    ...card.comments.flatMap((c) => c.attachments.map((a) => a.url)),
+  ];
+  await db.card.delete({ where: { id } });
+  return { urls };
+}
+
+// Arquiva (soft-delete reversível): some do board, mas continua no DB.
+export function archiveCard(id: string) {
+  return db.card.update({ where: { id }, data: { archivedAt: new Date() }, include: cardInclude });
+}
+
+// Restaura um card arquivado de volta pro board.
+export function unarchiveCard(id: string) {
+  return db.card.update({ where: { id }, data: { archivedAt: null }, include: cardInclude });
+}
+
+// Lista os cards arquivados, com o nome da coluna de origem.
+export function listArchivedCards() {
+  return db.card.findMany({
+    where: { archivedAt: { not: null } },
+    orderBy: { archivedAt: "desc" },
+    include: { ...cardInclude, column: { select: { name: true } } },
+  });
+}
+
+// Adiciona responsável(is) sem remover os demais (connect, idempotente).
+export async function assignCard(id: string, assignees: string[]) {
+  const ids = await resolveUserIds(assignees);
+  return db.card.update({
+    where: { id },
+    data: { assignees: { connect: ids.map((i) => ({ id: i })) } },
+    include: cardInclude,
+  });
+}
+
+// Remove responsável(is) sem mexer nos demais (disconnect).
+export async function unassignCard(id: string, assignees: string[]) {
+  const ids = await resolveUserIds(assignees);
+  return db.card.update({
+    where: { id },
+    data: { assignees: { disconnect: ids.map((i) => ({ id: i })) } },
+    include: cardInclude,
+  });
 }
 
 export async function createCard(input: CreateCardInput) {
@@ -103,7 +184,8 @@ export async function createCard(input: CreateCardInput) {
   return db.card.create({
     data: {
       columnId, title: input.title, details: input.details ?? input.description,
-      priority: input.priority, code: input.code, position,
+      priority: input.priority, type: input.type, version: input.version,
+      code: input.code, position,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
     },
@@ -124,7 +206,8 @@ export async function updateCard(id: string, input: UpdateCardInput) {
     where: { id },
     data: {
       title: input.title, details: input.details !== undefined ? input.details : input.description,
-      priority: input.priority, code: input.code, dueDate, assignees, labels,
+      priority: input.priority, type: input.type, version: input.version,
+      code: input.code, dueDate, assignees, labels,
     },
     include: cardInclude,
   });
@@ -160,8 +243,17 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
   });
 }
 
-export async function addComment(cardId: string, body: string, authorId?: string) {
+export async function addComment(
+  cardId: string, body: string, authorId?: string, attachmentIds?: string[],
+) {
   const c = await db.comment.create({ data: { cardId, body, authorId } });
+  // Vincula anexos já enviados (commentId null neste card) ao novo comentário.
+  if (attachmentIds?.length) {
+    await db.attachment.updateMany({
+      where: { id: { in: attachmentIds }, cardId, commentId: null },
+      data: { commentId: c.id },
+    });
+  }
   return { id: c.id };
 }
 

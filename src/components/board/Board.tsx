@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors, closestCorners,
@@ -14,13 +14,14 @@ function findCard(cols: ColumnData[], id: string) {
   return null;
 }
 
-export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, onDraggingChange }: {
+export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, onArchive, onDraggingChange }: {
   columns: ColumnData[];
   setColumns: (c: ColumnData[]) => void;
   view: ViewState;
   currentUser?: { id: string; name: string; avatarUrl: string | null } | null;
   onAdd: (columnId: string) => void;
   onOpen?: (id: string) => void;
+  onArchive?: (id: string) => void;
   onDraggingChange?: (dragging: boolean) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -28,6 +29,51 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
   const display = useMemo(() => applyView(columns, view), [columns, view]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = activeId ? findCard(columns, activeId) : null;
+
+  // Barra de scroll horizontal sticky (sempre visível no rodapé da tela),
+  // sincronizada com o container real das colunas. Colunas crescem livres
+  // (sem scroll interno); a página rola na vertical normalmente.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const syncing = useRef(false);
+  const [contentWidth, setContentWidth] = useState(0);
+  const [clientWidth, setClientWidth] = useState(0);
+  const overflow = contentWidth > clientWidth + 1;
+
+  const measure = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setContentWidth(el.scrollWidth);
+    setClientWidth(el.clientWidth);
+  }, []);
+
+  useEffect(() => { measure(); }, [measure, display.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    window.addEventListener("resize", measure);
+    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, [measure]);
+
+  // Sync bidirecional content↔barra (flag evita loop de eventos onScroll).
+  function onContentScroll() {
+    if (syncing.current) { syncing.current = false; return; }
+    if (barRef.current && scrollRef.current) {
+      syncing.current = true;
+      barRef.current.scrollLeft = scrollRef.current.scrollLeft;
+    }
+  }
+  function onBarScroll() {
+    if (syncing.current) { syncing.current = false; return; }
+    if (barRef.current && scrollRef.current) {
+      syncing.current = true;
+      scrollRef.current.scrollLeft = barRef.current.scrollLeft;
+    }
+  }
 
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
@@ -97,8 +143,28 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
       onDragEnd={onDragEnd}
       onDragCancel={endDrag}
     >
-      <div className="flex items-start gap-3.5 overflow-x-auto px-10 pb-10 pt-1.5">
-        {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} />)}
+      <div className="relative">
+        {/* Colunas crescem livres; scrollbar nativo deste container fica oculto. */}
+        <div
+          ref={scrollRef}
+          onScroll={onContentScroll}
+          className="overflow-x-auto px-10 pb-6 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="flex w-max items-start gap-3.5">
+            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} />)}
+          </div>
+        </div>
+
+        {/* Barra horizontal sempre visível, grudada no rodapé da viewport. */}
+        {overflow && (
+          <div
+            ref={barRef}
+            onScroll={onBarScroll}
+            className="sticky bottom-0 z-30 overflow-x-scroll bg-background/85 backdrop-blur [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/35 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:bg-transparent"
+          >
+            <div style={{ width: contentWidth }} className="h-px" />
+          </div>
+        )}
       </div>
       <DragOverlay>
         {active ? (

@@ -21,6 +21,8 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
   const [columnId, setColumnId] = useState(initialColumnId);
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("");
+  const [type, setType] = useState("");
+  const [version, setVersion] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -28,7 +30,12 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
     setSaving(true);
     const res = await fetch("/api/cards", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ columnId, title, priority: priority || undefined }),
+      body: JSON.stringify({
+        columnId, title,
+        priority: priority || undefined,
+        type: type || undefined,
+        version: version.trim() || undefined,
+      }),
     });
     setSaving(false);
     if (!res.ok) { toast.error("Falha ao criar card"); return; }
@@ -78,6 +85,31 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
                 </SelectGroup>
               </SelectContent>
             </Select>
+          </Field>
+
+          <Field>
+            <FieldLabel>Tipo</FieldLabel>
+            <Select value={type || "none"} onValueChange={(v) => setType(v === "none" ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="none">Sem tipo</SelectItem>
+                  <SelectItem value="BUG">Bug</SelectItem>
+                  <SelectItem value="FEATURE">Feature</SelectItem>
+                  <SelectItem value="TAREFA">Tarefa</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="card-version">Versão</FieldLabel>
+            <Input
+              id="card-version" placeholder="Ex.: 2.3.1"
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+            />
           </Field>
         </FieldGroup>
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as cards from "@/server/cards";
 
 const priority = z.enum(["ALTA", "MEDIA", "BAIXA"]);
+const cardType = z.enum(["BUG", "FEATURE", "TAREFA"]);
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
@@ -19,12 +20,13 @@ export function buildMcpServer() {
   s.registerTool(
     "list_cards",
     {
-      description: "Lista cards filtrando por coluna, assignee ou prioridade",
+      description: "Lista cards filtrando por coluna, assignee ou prioridade. Para 'todos os cards do usuário X', passe assignee com o id, nome ou e-mail dele.",
       inputSchema: {
         columnId: z.string().optional(),
         columnName: z.string().optional(),
-        assignee: z.string().optional(),
+        assignee: z.string().optional().describe("id, nome ou e-mail do responsável"),
         priority: priority.optional(),
+        type: cardType.optional(),
       },
     },
     async (a) => json(await cards.listCards(a as cards.CardFilter)),
@@ -50,6 +52,8 @@ export function buildMcpServer() {
         description: z.string().optional().describe("(legado) cai em details — use details"),
         details: z.string().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
+        type: cardType.optional().describe("Tipo do card: BUG, FEATURE ou TAREFA"),
+        version: z.string().optional().describe("Versão (ex.: 2.3.1)"),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),
@@ -68,6 +72,8 @@ export function buildMcpServer() {
         description: z.string().optional().describe("(legado) cai em details — use details"),
         details: z.string().nullable().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
+        type: cardType.nullable().optional().describe("Tipo do card: BUG, FEATURE ou TAREFA"),
+        version: z.string().nullable().optional().describe("Versão (ex.: 2.3.1)"),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),
@@ -75,6 +81,67 @@ export function buildMcpServer() {
     },
     async ({ id, ...rest }) =>
       json(await cards.updateCard(id, rest as cards.UpdateCardInput)),
+  );
+
+  s.registerTool(
+    "delete_card",
+    {
+      description: "Exclui um card (e seus comentários/anexos). Ação irreversível.",
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => {
+      const r = await cards.deleteCard(id);
+      if (!r) throw new Error(`Card não encontrado: ${id}`);
+      return json({ ok: true, deletedId: id });
+    },
+  );
+
+  s.registerTool(
+    "archive_card",
+    {
+      description: "Arquiva um card (some do board, reversível). Use unarchive_card p/ restaurar.",
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => json(await cards.archiveCard(id)),
+  );
+
+  s.registerTool(
+    "unarchive_card",
+    {
+      description: "Restaura um card arquivado de volta pro board",
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => json(await cards.unarchiveCard(id)),
+  );
+
+  s.registerTool(
+    "list_archived_cards",
+    { description: "Lista os cards arquivados", inputSchema: {} },
+    async () => json(await cards.listArchivedCards()),
+  );
+
+  s.registerTool(
+    "assign_card",
+    {
+      description: "Adiciona responsável(is) a um card sem remover os demais",
+      inputSchema: {
+        id: z.string(),
+        assignees: z.array(z.string()).describe("ids, nomes ou e-mails"),
+      },
+    },
+    async ({ id, assignees }) => json(await cards.assignCard(id, assignees)),
+  );
+
+  s.registerTool(
+    "unassign_card",
+    {
+      description: "Remove responsável(is) de um card sem mexer nos demais",
+      inputSchema: {
+        id: z.string(),
+        assignees: z.array(z.string()).describe("ids, nomes ou e-mails"),
+      },
+    },
+    async ({ id, assignees }) => json(await cards.unassignCard(id, assignees)),
   );
 
   s.registerTool(
@@ -115,17 +182,18 @@ export function buildMcpServer() {
   s.registerTool(
     "add_attachment",
     {
-      description: "Anexa um arquivo/imagem (por URL) a um card. Use a URL no markdown do campo details para exibir imagens.",
+      description: "Anexa um arquivo/imagem (por URL) a um card ou comentário. Use a URL no markdown do campo details para exibir imagens.",
       inputSchema: {
         cardId: z.string(),
         url: z.string().describe("URL pública do arquivo/imagem"),
         name: z.string().describe("Nome do arquivo (ex.: print.png)"),
         contentType: z.string().optional(),
         size: z.number().optional(),
+        commentId: z.string().optional().describe("Anexa ao comentário em vez do card"),
       },
     },
-    async ({ cardId, url, name, contentType, size }) =>
-      json(await cards.addAttachment({ cardId, url, name, contentType, size })),
+    async ({ cardId, url, name, contentType, size, commentId }) =>
+      json(await cards.addAttachment({ cardId, url, name, contentType, size, commentId })),
   );
 
   s.registerTool(

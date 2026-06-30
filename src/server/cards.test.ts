@@ -2,14 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
   column: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
-  card: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+  card: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   user: { findMany: vi.fn() },
   label: { findMany: vi.fn() },
   comment: { create: vi.fn() },
+  attachment: { updateMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
-import { resolveColumnId, moveCard } from "./cards";
+import { resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -37,5 +38,59 @@ describe("moveCard", () => {
     const r = await moveCard("card1", "c1", undefined);
     expect(dbMock.card.update).toHaveBeenCalled();
     expect(r.position).toBe(2000);
+  });
+});
+
+describe("deleteCard", () => {
+  it("coleta urls de blob (card + comentários) e apaga", async () => {
+    dbMock.card.findUnique.mockResolvedValue({
+      attachments: [{ url: "u1" }],
+      comments: [{ attachments: [{ url: "u2" }, { url: "u3" }] }],
+    });
+    dbMock.card.delete.mockResolvedValue({});
+    const r = await deleteCard("card1");
+    expect(r).toEqual({ urls: ["u1", "u2", "u3"] });
+    expect(dbMock.card.delete).toHaveBeenCalledWith({ where: { id: "card1" } });
+  });
+  it("devolve null se card não existe (não apaga)", async () => {
+    dbMock.card.findUnique.mockResolvedValue(null);
+    expect(await deleteCard("nope")).toBeNull();
+    expect(dbMock.card.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe("assign/unassign", () => {
+  it("assignCard usa connect (não remove os demais)", async () => {
+    dbMock.user.findMany.mockResolvedValue([{ id: "u1" }]);
+    dbMock.card.update.mockResolvedValue({ id: "c1" });
+    await assignCard("c1", ["Maria"]);
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { assignees: { connect: [{ id: "u1" }] } },
+    }));
+  });
+  it("unassignCard usa disconnect", async () => {
+    dbMock.user.findMany.mockResolvedValue([{ id: "u1" }]);
+    dbMock.card.update.mockResolvedValue({ id: "c1" });
+    await unassignCard("c1", ["u1"]);
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { assignees: { disconnect: [{ id: "u1" }] } },
+    }));
+  });
+});
+
+describe("addComment", () => {
+  it("vincula anexos pendentes ao novo comentário", async () => {
+    dbMock.comment.create.mockResolvedValue({ id: "cm1" });
+    dbMock.attachment.updateMany.mockResolvedValue({ count: 2 });
+    await addComment("card1", "olha o print", "author1", ["a1", "a2"]);
+    expect(dbMock.attachment.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["a1", "a2"] }, cardId: "card1", commentId: null },
+      data: { commentId: "cm1" },
+    });
+  });
+  it("não chama updateMany sem anexos", async () => {
+    dbMock.comment.create.mockResolvedValue({ id: "cm2" });
+    await addComment("card1", "texto");
+    expect(dbMock.attachment.updateMany).not.toHaveBeenCalled();
   });
 });
