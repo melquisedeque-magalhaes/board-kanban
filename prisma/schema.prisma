@@ -75,13 +75,14 @@ model Attachment {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  clerkId   String?   @unique
-  name      String
-  email     String?   @unique
-  avatarUrl String?
-  cards     Card[]    @relation("CardAssignees")
-  comments  Comment[]
+  id               String    @id @default(cuid())
+  clerkId          String?   @unique
+  name             String
+  email            String?   @unique
+  avatarUrl        String?
+  profileCustomized Boolean  @default(false)
+  cards            Card[]    @relation("CardAssignees")
+  comments         Comment[]
 }
 
 model Label {

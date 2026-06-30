@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Board } from "./Board";
@@ -33,6 +33,18 @@ export function BoardApp({ initialColumns, users, currentUser }: {
   const [openCard, setOpenCard] = useState<string | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+
+  // Deep-link: ?card=<id> abre o card no load e espelha o card aberto na URL.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("card");
+    if (id) setOpenCard(id);
+  }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (openCard) url.searchParams.set("card", openCard);
+    else url.searchParams.delete("card");
+    window.history.replaceState(null, "", url);
+  }, [openCard]);
 
   // Pausa o polling/refocus quando há interação em andamento (não atropela).
   const busy = dragging || createCol !== null || openCard !== null || archivedOpen;
