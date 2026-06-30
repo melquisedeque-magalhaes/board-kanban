@@ -14,7 +14,6 @@ import { avatarColor, initials, columnSwatch } from "./colors";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -561,7 +560,8 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
+              {/* Caixa de comentário: multi-linha + barra com anexo + ações. */}
+              <div className="rounded-lg border bg-background focus-within:ring-1 focus-within:ring-ring">
                 <input
                   ref={commentFileRef}
                   type="file"
@@ -572,28 +572,48 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                     e.target.value = "";
                   }}
                 />
-                <Button
-                  variant="ghost" size="icon" className="size-9 shrink-0"
-                  onClick={() => commentFileRef.current?.click()}
-                  disabled={uploading}
-                  aria-label="Anexar imagem ao comentário"
-                >
-                  {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
-                </Button>
-                <Input
+                <textarea
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") addComment(); }}
+                  onKeyDown={(e) => {
+                    // Enter quebra linha; Ctrl/⌘+Enter envia.
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment(); }
+                  }}
                   onPaste={(e) => {
                     const file = Array.from(e.clipboardData.files)[0];
                     if (file) { e.preventDefault(); attachToComment(file); }
                   }}
-                  placeholder="Comente ou cole um print (Ctrl+V)…"
-                  className="h-9"
+                  placeholder="Escreva um comentário…"
+                  rows={3}
+                  className="block min-h-[84px] w-full resize-y bg-transparent px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
                 />
-                <Button size="sm" onClick={addComment} disabled={!comment.trim() && pendingAtts.length === 0}>
-                  Enviar
-                </Button>
+                <div className="flex items-center justify-between border-t px-2 py-1.5">
+                  <Button
+                    variant="ghost" size="icon" className="size-8"
+                    onClick={() => commentFileRef.current?.click()}
+                    disabled={uploading}
+                    title="Anexar arquivo/imagem"
+                    aria-label="Anexar arquivo/imagem ao comentário"
+                  >
+                    {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => { setComment(""); setPendingAtts([]); }}
+                      disabled={!comment && pendingAtts.length === 0}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={addComment}
+                      disabled={!comment.trim() && pendingAtts.length === 0}
+                    >
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {onArchive && (

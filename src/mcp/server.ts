@@ -84,19 +84,6 @@ export function buildMcpServer() {
   );
 
   s.registerTool(
-    "delete_card",
-    {
-      description: "Exclui um card (e seus comentários/anexos). Ação irreversível.",
-      inputSchema: { id: z.string() },
-    },
-    async ({ id }) => {
-      const r = await cards.deleteCard(id);
-      if (!r) throw new Error(`Card não encontrado: ${id}`);
-      return json({ ok: true, deletedId: id });
-    },
-  );
-
-  s.registerTool(
     "archive_card",
     {
       description: "Arquiva um card (some do board, reversível). Use unarchive_card p/ restaurar.",
