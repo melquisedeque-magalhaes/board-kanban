@@ -12,10 +12,12 @@ export function Column({
   column,
   onAdd,
   onOpen,
+  onDelete,
 }: {
   column: ColumnData;
   onAdd: (columnId: string) => void;
   onOpen?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   const { setNodeRef } = useDroppable({ id: column.id });
   const swatch = columnSwatch(column.name);
@@ -34,7 +36,7 @@ export function Column({
       <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="flex min-h-2 flex-col gap-2">
           {column.cards.map((c) => (
-            <Card key={c.id} card={c} statusName={column.name} statusSwatch={swatch} onOpen={onOpen} />
+            <Card key={c.id} card={c} statusName={column.name} statusSwatch={swatch} onOpen={onOpen} onDelete={onDelete} />
           ))}
         </div>
       </SortableContext>

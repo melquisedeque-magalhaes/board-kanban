@@ -14,13 +14,14 @@ function findCard(cols: ColumnData[], id: string) {
   return null;
 }
 
-export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, onDraggingChange }: {
+export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, onDelete, onDraggingChange }: {
   columns: ColumnData[];
   setColumns: (c: ColumnData[]) => void;
   view: ViewState;
   currentUser?: { id: string; name: string; avatarUrl: string | null } | null;
   onAdd: (columnId: string) => void;
   onOpen?: (id: string) => void;
+  onDelete?: (id: string) => void;
   onDraggingChange?: (dragging: boolean) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -98,7 +99,7 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
       onDragCancel={endDrag}
     >
       <div className="flex items-start gap-3.5 overflow-x-auto px-10 pb-10 pt-1.5">
-        {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} />)}
+        {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onDelete={onDelete} />)}
       </div>
       <DragOverlay>
         {active ? (
