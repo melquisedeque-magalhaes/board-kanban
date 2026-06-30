@@ -15,7 +15,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -117,6 +116,29 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
   const detailsRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commentFileRef = useRef<HTMLInputElement>(null);
+
+  // Largura do drawer (px), ajustável arrastando a borda esquerda; persiste no localStorage.
+  const [width, setWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 640;
+    const v = Number(localStorage.getItem("cardDrawerWidth"));
+    return v >= 380 ? v : 640;
+  });
+  function startResize(e: React.PointerEvent) {
+    e.preventDefault();
+    let last = width;
+    const onMove = (ev: PointerEvent) => {
+      // Painel ancorado à direita → largura = distância do cursor até a borda direita.
+      last = Math.min(Math.max(window.innerWidth - ev.clientX, 380), window.innerWidth - 80);
+      setWidth(last);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      try { localStorage.setItem("cardDrawerWidth", String(Math.round(last))); } catch { /* storage bloqueado */ }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
 
   // Troca de card → zera rascunho do comentário e anexos pendentes (reset em render).
   const [prevCardId, setPrevCardId] = useState(cardId);
@@ -246,7 +268,16 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent className="w-full gap-0 overflow-y-auto p-0 sm:max-w-xl">
+      <SheetContent
+        className="gap-0 overflow-y-auto p-0"
+        style={{ width: `${width}px`, maxWidth: "calc(100vw - 80px)" }}
+      >
+        {/* Handle de redimensionar — arrasta a borda esquerda do drawer. */}
+        <div
+          onPointerDown={startResize}
+          className="absolute left-0 top-0 z-50 h-full w-1.5 cursor-ew-resize hover:bg-primary/30"
+          aria-hidden
+        />
         {!card ? (
           <div className="p-6">
             <SheetHeader className="p-0">
@@ -445,7 +476,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                     const file = e.dataTransfer.files?.[0];
                     if (file) { e.preventDefault(); uploadAndInsert(file); }
                   }}
-                  className="min-h-32 w-full resize-y rounded-md bg-muted/40 p-3 font-mono text-sm leading-relaxed outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring [field-sizing:content]"
+                  className="min-h-32 w-full resize-y rounded-lg bg-muted/40 p-3 font-mono text-sm leading-relaxed outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring [field-sizing:content]"
                 />
               ) : (
                 <button
@@ -496,8 +527,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
 
             <div className="flex flex-col gap-3 px-8 py-5">
               <span className="text-sm font-semibold">Comentários</span>
-              <ScrollArea className="max-h-60">
-                <div className="flex flex-col gap-3 pr-3">
+              <div className="flex flex-col gap-3">
                   {card.comments.length === 0 && (
                     <span className="text-sm text-muted-foreground">Nenhum comentário ainda.</span>
                   )}
@@ -511,7 +541,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                       </Avatar>
                       <div className="flex min-w-0 flex-col gap-1">
                         <span className="text-xs font-medium">{c.author?.name ?? "Alguém"}</span>
-                        {c.body ? <span className="text-sm whitespace-pre-wrap break-words">{c.body}</span> : null}
+                        {c.body ? <MarkdownView source={c.body} /> : null}
                         {c.attachments?.length > 0 && (
                           <div className="mt-0.5 flex flex-wrap gap-2">
                             {c.attachments.map((a) =>
@@ -532,8 +562,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                       </div>
                     </div>
                   ))}
-                </div>
-              </ScrollArea>
+              </div>
 
               {pendingAtts.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -561,7 +590,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
               )}
 
               {/* Caixa de comentário: multi-linha + barra com anexo + ações. */}
-              <div className="rounded-lg border bg-background focus-within:ring-1 focus-within:ring-ring">
+              <div className="rounded-lg bg-muted/40 focus-within:ring-1 focus-within:ring-ring">
                 <input
                   ref={commentFileRef}
                   type="file"
@@ -585,9 +614,9 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                   }}
                   placeholder="Escreva um comentário…"
                   rows={3}
-                  className="block min-h-[84px] w-full resize-y bg-transparent px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
+                  className="block min-h-[84px] w-full resize-y bg-transparent p-3 font-mono text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
                 />
-                <div className="flex items-center justify-between border-t px-2 py-1.5">
+                <div className="flex items-center justify-between border-t border-foreground/10 px-2 py-1.5">
                   <Button
                     variant="ghost" size="icon" className="size-8"
                     onClick={() => commentFileRef.current?.click()}
