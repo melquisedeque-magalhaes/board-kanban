@@ -2,9 +2,10 @@
 import { useState } from "react";
 import {
   Users, Table, Columns3, Funnel, ArrowUpDown, Zap, Search,
-  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon,
+  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon, UserPen,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
+import { ProfileDialog } from "./ProfileDialog";
 import { avatarColor, initials } from "./colors";
 import { activeFilterCount, type ViewState, type SortMode } from "./view";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -39,6 +40,7 @@ export function Chrome({ view, setView, users, online, onNew }: {
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const fcount = activeFilterCount(view);
   const shown = online.slice(0, 3);
   const extra = online.length - shown.length;
@@ -99,9 +101,19 @@ export function Chrome({ view, setView, users, online, onNew }: {
           </Popover>
 
           <ThemeToggle />
-          <UserButton />
+          <UserButton>
+            <UserButton.MenuItems>
+              <UserButton.Action
+                label="Editar perfil no board"
+                labelIcon={<UserPen className="size-4" />}
+                onClick={() => setProfileOpen(true)}
+              />
+            </UserButton.MenuItems>
+          </UserButton>
         </div>
       </div>
+
+      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
 
       {/* Title */}
       <div className="flex flex-col gap-1 px-10 pb-1 pt-4">

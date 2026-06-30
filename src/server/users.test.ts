@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const dbMock = vi.hoisted(() => ({ user: { upsert: vi.fn() } }));
+const dbMock = vi.hoisted(() => ({ user: { upsert: vi.fn(), findUnique: vi.fn() } }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 const currentUserMock = vi.hoisted(() => vi.fn());
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: () => currentUserMock() }));
 
 import { syncCurrentUser } from "./users";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  dbMock.user.findUnique.mockResolvedValue(null); // usuário ainda não existe por padrão
+});
 
 describe("syncCurrentUser", () => {
   it("retorna null se não há usuário logado", async () => {
@@ -33,10 +36,31 @@ describe("syncCurrentUser", () => {
     expect(arg.update).toMatchObject({ name: "Melqui Sodré", email: "m@brq.com", avatarUrl: "http://img/a.png" });
   });
 
-  it("usa o id do Clerk como nome quando não há firstName/lastName", async () => {
-    currentUserMock.mockResolvedValue({ id: "clerk_x", imageUrl: "", primaryEmailAddress: null });
+  it("cai pro local-part do email quando não há firstName/lastName (magic-link)", async () => {
+    currentUserMock.mockResolvedValue({
+      id: "clerk_x", imageUrl: "", primaryEmailAddress: { emailAddress: "ubirajarapelli@brq.com" },
+    });
     dbMock.user.upsert.mockResolvedValue({ id: "u2" });
     await syncCurrentUser();
-    expect(dbMock.user.upsert.mock.calls[0][0].create.name).toBe("clerk_x");
+    expect(dbMock.user.upsert.mock.calls[0][0].create.name).toBe("ubirajarapelli");
+  });
+
+  it("não há nome nem email → 'Usuário' (nunca o clerkId)", async () => {
+    currentUserMock.mockResolvedValue({ id: "clerk_y", imageUrl: "", primaryEmailAddress: null });
+    dbMock.user.upsert.mockResolvedValue({ id: "u3" });
+    await syncCurrentUser();
+    expect(dbMock.user.upsert.mock.calls[0][0].create.name).toBe("Usuário");
+  });
+
+  it("não sobrescreve name/avatar se profileCustomized (só email)", async () => {
+    currentUserMock.mockResolvedValue({
+      id: "clerk_z", firstName: "Clerk", lastName: "Name",
+      imageUrl: "http://img/clerk.png", primaryEmailAddress: { emailAddress: "z@brq.com" },
+    });
+    dbMock.user.findUnique.mockResolvedValue({ profileCustomized: true });
+    dbMock.user.upsert.mockResolvedValue({ id: "u4" });
+    await syncCurrentUser();
+    const arg = dbMock.user.upsert.mock.calls[0][0];
+    expect(arg.update).toEqual({ email: "z@brq.com" });
   });
 });
