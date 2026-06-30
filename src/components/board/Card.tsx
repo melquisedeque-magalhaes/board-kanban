@@ -1,10 +1,19 @@
 "use client";
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, MoreHorizontal, Link2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { PRIORITY, avatarColor, initials, type Swatch } from "./colors";
+
+export function cardLink(id: string) {
+  return `${typeof window !== "undefined" ? window.location.origin : ""}/?card=${id}`;
+}
 
 export interface CardData {
   id: string; code?: string | null; title: string;
@@ -88,14 +97,17 @@ export function Card({
   statusName,
   statusSwatch,
   onOpen,
+  onDelete,
 }: {
   card: CardData;
   statusName: string;
   statusSwatch: Swatch;
   onOpen?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id });
+  const [menuOpen, setMenuOpen] = useState(false);
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
@@ -115,6 +127,15 @@ export function Card({
     );
   }
 
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(cardLink(card.id));
+      toast.success("Link copiado");
+    } catch {
+      toast.error("Não foi possível copiar");
+    }
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -122,8 +143,29 @@ export function Card({
       {...attributes}
       {...listeners}
       onClick={() => onOpen?.(card.id)}
-      className="cursor-grab active:cursor-grabbing"
+      onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); }}
+      className="group/card relative cursor-grab active:cursor-grabbing"
     >
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label="Ações do card"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute right-1.5 top-1.5 z-10 hidden rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground group-hover/card:block data-[state=open]:block"
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem onClick={copyLink}>
+            <Link2 className="size-4" /> Copiar link
+          </DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(card.id)}>
+            <Trash2 className="size-4" /> Excluir
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <CardView card={card} statusName={statusName} statusSwatch={statusSwatch} />
     </div>
   );
