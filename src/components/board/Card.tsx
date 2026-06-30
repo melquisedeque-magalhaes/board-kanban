@@ -2,14 +2,14 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageCircle, MoreHorizontal, Link2, Trash2 } from "lucide-react";
+import { MessageCircle, MoreHorizontal, Link2, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { PRIORITY, avatarColor, initials, type Swatch } from "./colors";
+import { PRIORITY, CARD_TYPE, avatarColor, initials, type Swatch } from "./colors";
 
 export function cardLink(id: string) {
   return `${typeof window !== "undefined" ? window.location.origin : ""}/?card=${id}`;
@@ -19,6 +19,8 @@ export interface CardData {
   id: string; code?: string | null; title: string;
   position: number;
   priority?: "ALTA" | "MEDIA" | "BAIXA" | null;
+  type?: "BUG" | "FEATURE" | "TAREFA" | null;
+  version?: string | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
   labels: { id: string; name: string; color: string }[];
   _count: { comments: number };
@@ -37,6 +39,7 @@ export function CardView({
   dragging?: boolean;
 }) {
   const pr = card.priority ? PRIORITY[card.priority] : null;
+  const ty = card.type ? CARD_TYPE[card.type] : null;
   return (
     <div
       className={
@@ -73,6 +76,15 @@ export function CardView({
             ))}
           </div>
         )}
+        {ty ? (
+          <Badge
+            variant="secondary"
+            className="border-transparent font-medium"
+            style={{ background: ty.bg, color: ty.text }}
+          >
+            {ty.label}
+          </Badge>
+        ) : null}
         {pr ? (
           <Badge
             variant="secondary"
@@ -81,6 +93,11 @@ export function CardView({
           >
             {pr.label}
           </Badge>
+        ) : null}
+        {card.version ? (
+          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            v{card.version}
+          </span>
         ) : null}
         {card._count.comments > 0 ? (
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -97,13 +114,13 @@ export function Card({
   statusName,
   statusSwatch,
   onOpen,
-  onDelete,
+  onArchive,
 }: {
   card: CardData;
   statusName: string;
   statusSwatch: Swatch;
   onOpen?: (id: string) => void;
-  onDelete?: (id: string) => void;
+  onArchive?: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id });
@@ -161,9 +178,11 @@ export function Card({
           <DropdownMenuItem onClick={copyLink}>
             <Link2 className="size-4" /> Copiar link
           </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(card.id)}>
-            <Trash2 className="size-4" /> Excluir
-          </DropdownMenuItem>
+          {onArchive && (
+            <DropdownMenuItem onClick={() => onArchive(card.id)}>
+              <Archive className="size-4" /> Arquivar card
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <CardView card={card} statusName={statusName} statusSwatch={statusSwatch} />

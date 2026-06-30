@@ -6,6 +6,7 @@ import { Board } from "./Board";
 import { Chrome, type UserLite } from "./Chrome";
 import { CardDialog } from "./CardDialog";
 import { CardDrawer } from "./CardDrawer";
+import { ArchivedDrawer } from "./ArchivedDrawer";
 import type { ColumnData } from "./Column";
 import { EMPTY_VIEW, type ViewState } from "./view";
 
@@ -30,6 +31,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
   const [view, setView] = useState<ViewState>(EMPTY_VIEW);
   const [createCol, setCreateCol] = useState<string | null>(null);
   const [openCard, setOpenCard] = useState<string | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   // Deep-link: ?card=<id> abre o card no load e espelha o card aberto na URL.
@@ -45,7 +47,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
   }, [openCard]);
 
   // Pausa o polling/refocus quando há interação em andamento (não atropela).
-  const busy = dragging || createCol !== null || openCard !== null;
+  const busy = dragging || createCol !== null || openCard !== null || archivedOpen;
 
   const { data: columns = initialColumns } = useQuery({
     queryKey: ["columns"],
@@ -70,14 +72,23 @@ export function BoardApp({ initialColumns, users, currentUser }: {
     qc.invalidateQueries({ queryKey: ["columns"] });
   }, [qc]);
 
-  const deleteCard = useCallback(async (id: string) => {
-    if (!window.confirm("Excluir este card? Esta ação não pode ser desfeita.")) return;
-    const res = await fetch(`/api/cards/${id}`, { method: "DELETE" });
-    if (!res.ok) { toast.error("Falha ao excluir"); return; }
-    if (openCard === id) setOpenCard(null);
-    toast.success("Card excluído");
+  const setArchived = useCallback(async (id: string, archived: boolean) => {
+    const res = await fetch(`/api/cards/${id}/archive`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ archived }),
+    });
+    if (!res.ok) { toast.error(archived ? "Falha ao arquivar" : "Falha ao restaurar"); return false; }
     refetch();
-  }, [openCard, refetch]);
+    qc.invalidateQueries({ queryKey: ["archived"] });
+    return true;
+  }, [qc, refetch]);
+
+  // Arquivar é reversível → ação imediata + toast com "Desfazer".
+  const archiveCard = useCallback(async (id: string) => {
+    if (openCard === id) setOpenCard(null);
+    const ok = await setArchived(id, true);
+    if (ok) toast.success("Card arquivado", { action: { label: "Desfazer", onClick: () => setArchived(id, false) } });
+  }, [openCard, setArchived]);
 
   return (
     <>
@@ -87,6 +98,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         users={users}
         online={online}
         onNew={() => setCreateCol(columns[0]?.id ?? null)}
+        onOpenArchived={() => setArchivedOpen(true)}
       />
       <Board
         columns={columns}
@@ -95,7 +107,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         currentUser={currentUser}
         onAdd={setCreateCol}
         onOpen={setOpenCard}
-        onDelete={deleteCard}
+        onArchive={archiveCard}
         onDraggingChange={setDragging}
       />
       {createCol && (
@@ -111,6 +123,12 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         columns={columns}
         users={users}
         onClose={() => setOpenCard(null)}
+        onChanged={refetch}
+        onArchive={archiveCard}
+      />
+      <ArchivedDrawer
+        open={archivedOpen}
+        onClose={() => setArchivedOpen(false)}
         onChanged={refetch}
       />
     </>

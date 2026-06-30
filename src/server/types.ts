@@ -1,11 +1,12 @@
-import type { Priority } from "@prisma/client";
-export type { Priority };
+import type { Priority, CardType } from "@prisma/client";
+export type { Priority, CardType };
 
 export interface CardFilter {
   columnId?: string;
   columnName?: string;
   assignee?: string; // nome ou id
   priority?: Priority;
+  type?: CardType;
 }
 export interface CreateCardInput {
   columnId?: string;
@@ -14,6 +15,8 @@ export interface CreateCardInput {
   description?: string; // alias legado → dobra em details
   details?: string;
   priority?: Priority;
+  type?: CardType;
+  version?: string;
   code?: string;
   assignees?: string[]; // nomes ou ids
   labels?: string[];    // nomes ou ids
@@ -23,6 +26,8 @@ export interface UpdateCardInput {
   description?: string; // alias legado → dobra em details
   details?: string | null;
   priority?: Priority | null;
+  type?: CardType | null;
+  version?: string | null;
   code?: string | null;
   dueDate?: string | Date | null;
   assignees?: string[];

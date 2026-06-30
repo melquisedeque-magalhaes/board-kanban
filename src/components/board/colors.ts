@@ -29,6 +29,12 @@ export const PRIORITY: Record<string, Swatch & { label: string }> = {
   BAIXA: { label: "Baixa", bg: "#e3e2e0", text: "#5f5e5b" },
 };
 
+export const CARD_TYPE: Record<string, Swatch & { label: string }> = {
+  BUG: { label: "Bug", bg: "#ffe2dd", text: "#5d2117" },
+  FEATURE: { label: "Feature", bg: "#d3e5ef", text: "#183347" },
+  TAREFA: { label: "Tarefa", bg: "#dbeddb", text: "#1c3829" },
+};
+
 // Cor do avatar derivada do nome (estável).
 const AVATAR_PALETTE = [
   "#6b7cff", "#3aa675", "#e07a5f", "#5b8def",

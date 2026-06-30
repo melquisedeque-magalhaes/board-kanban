@@ -2,7 +2,7 @@
 import { useState } from "react";
 import {
   Users, Table, Columns3, Funnel, ArrowUpDown, Zap, Search,
-  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon, UserPen,
+  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon, Archive, UserPen,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ProfileDialog } from "./ProfileDialog";
@@ -31,12 +31,13 @@ function UserAvatar({ name, url, className }: { name: string; url?: string | nul
   );
 }
 
-export function Chrome({ view, setView, users, online, onNew }: {
+export function Chrome({ view, setView, users, online, onNew, onOpenArchived }: {
   view: ViewState;
   setView: (v: ViewState) => void;
   users: UserLite[];
   online: UserLite[];
   onNew: () => void;
+  onOpenArchived: () => void;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -159,6 +160,21 @@ export function Chrome({ view, setView, users, online, onNew }: {
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Tipo</span>
+                <Select value={view.type ?? "all"}
+                  onValueChange={(v) => setView({ ...view, type: (v === "all" ? null : v) as ViewState["type"] })}>
+                  <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="BUG">Bug</SelectItem>
+                      <SelectItem value="FEATURE">Feature</SelectItem>
+                      <SelectItem value="TAREFA">Tarefa</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-medium text-muted-foreground">Responsável</span>
                 <Select value={view.assignee ?? "all"}
                   onValueChange={(v) => setView({ ...view, assignee: v === "all" ? null : v })}>
@@ -173,7 +189,7 @@ export function Chrome({ view, setView, users, online, onNew }: {
               </div>
               {fcount > 0 && (
                 <Button variant="ghost" size="sm" className="justify-start"
-                  onClick={() => setView({ ...view, priority: null, assignee: null })}>
+                  onClick={() => setView({ ...view, priority: null, type: null, assignee: null })}>
                   <X data-icon="inline-start" /> Limpar filtros
                 </Button>
               )}
@@ -200,6 +216,7 @@ export function Chrome({ view, setView, users, online, onNew }: {
           </Popover>
 
           <Button variant="ghost" size="icon" title="Automações"><Zap /></Button>
+          <Button variant="ghost" size="icon" title="Arquivados" onClick={onOpenArchived}><Archive /></Button>
 
           {/* Busca */}
           {searchOpen ? (

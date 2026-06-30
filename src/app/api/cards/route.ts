@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { listCards, createCard } from "@/server/cards";
 import { requireUser } from "@/server/auth-guard";
-import type { Priority } from "@prisma/client";
+import type { Priority, CardType } from "@prisma/client";
 
 export async function GET(req: Request) {
   const unauth = await requireUser();
@@ -11,6 +11,7 @@ export async function GET(req: Request) {
     columnId: sp.get("columnId") ?? undefined,
     assignee: sp.get("assignee") ?? undefined,
     priority: (sp.get("priority") as Priority) ?? undefined,
+    type: (sp.get("type") as CardType) ?? undefined,
   });
   return NextResponse.json(cards);
 }

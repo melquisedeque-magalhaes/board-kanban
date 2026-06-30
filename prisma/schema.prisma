@@ -12,6 +12,12 @@ enum Priority {
   BAIXA
 }
 
+enum CardType {
+  BUG
+  FEATURE
+  TAREFA
+}
+
 model Board {
   id        String   @id @default(cuid())
   name      String
@@ -37,7 +43,10 @@ model Card {
   title       String
   details     String?   @db.Text
   priority    Priority?
+  type        CardType?
+  version     String?
   dueDate     DateTime?
+  archivedAt  DateTime?
   position    Float
   assignees   User[]    @relation("CardAssignees")
   labels      Label[]   @relation("CardLabels")
@@ -45,12 +54,16 @@ model Card {
   attachments Attachment[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([archivedAt])
 }
 
 model Attachment {
   id          String   @id @default(cuid())
   cardId      String
   card        Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  commentId   String?
+  comment     Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   url         String
   name        String
   contentType String?
@@ -58,6 +71,7 @@ model Attachment {
   createdAt   DateTime @default(now())
 
   @@index([cardId])
+  @@index([commentId])
 }
 
 model User {
@@ -79,11 +93,12 @@ model Label {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
-  cardId    String
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  authorId  String?
-  author    User?    @relation(fields: [authorId], references: [id])
-  body      String   @db.Text
-  createdAt DateTime @default(now())
+  id          String       @id @default(cuid())
+  cardId      String
+  card        Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  authorId    String?
+  author      User?        @relation(fields: [authorId], references: [id])
+  body        String       @db.Text
+  attachments Attachment[]
+  createdAt   DateTime     @default(now())
 }
