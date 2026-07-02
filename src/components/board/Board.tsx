@@ -155,12 +155,12 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
           </div>
         </div>
 
-        {/* Barra horizontal sempre visível, grudada no rodapé da viewport. */}
+        {/* Barra horizontal fixa no rodapé da tela (sempre visível), sincronizada. */}
         {overflow && (
           <div
             ref={barRef}
             onScroll={onBarScroll}
-            className="sticky bottom-0 z-30 overflow-x-scroll bg-background/85 backdrop-blur [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/35 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:bg-transparent"
+            className="fixed inset-x-0 bottom-0 z-30 overflow-x-scroll border-t bg-background/85 backdrop-blur [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/35 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:bg-transparent"
           >
             <div style={{ width: contentWidth }} className="h-px" />
           </div>

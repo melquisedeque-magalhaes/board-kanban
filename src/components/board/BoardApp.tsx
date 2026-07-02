@@ -122,6 +122,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         cardId={openCard}
         columns={columns}
         users={users}
+        currentUser={currentUser}
         onClose={() => setOpenCard(null)}
         onChanged={refetch}
         onArchive={archiveCard}

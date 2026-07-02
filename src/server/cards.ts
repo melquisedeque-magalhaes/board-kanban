@@ -257,6 +257,15 @@ export async function addComment(
   return { id: c.id };
 }
 
+export function getComment(id: string) {
+  return db.comment.findUnique({ where: { id } });
+}
+
+export async function updateComment(id: string, body: string) {
+  await db.comment.update({ where: { id }, data: { body } });
+  return { id };
+}
+
 export const listUsers = () => db.user.findMany({ orderBy: { name: "asc" } });
 export const listLabels = () => db.label.findMany({ orderBy: { name: "asc" } });
 
