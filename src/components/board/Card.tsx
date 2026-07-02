@@ -21,6 +21,7 @@ export function cardLink(id: string) {
 export interface CardData {
   id: string; code?: string | null; title: string;
   position: number;
+  createdAt: string;
   priority?: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type?: "BUG" | "FEATURE" | "TAREFA" | null;
   version?: string | null;
@@ -118,15 +119,17 @@ export function Card({
   statusSwatch,
   onOpen,
   onArchive,
+  dragDisabled,
 }: {
   card: CardData;
   statusName: string;
   statusSwatch: Swatch;
   onOpen?: (id: string) => void;
   onArchive?: (id: string) => void;
+  dragDisabled?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: card.id });
+    useSortable({ id: card.id, disabled: dragDisabled });
   const [menuOpen, setMenuOpen] = useState(false);
   const style = {
     transform: CSS.Translate.toString(transform),

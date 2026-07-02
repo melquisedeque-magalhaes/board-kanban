@@ -1,6 +1,7 @@
 import type { ColumnData } from "./Column";
 
-export type SortMode = "manual" | "priority" | "title";
+export type SortMode = "manual" | "priority" | "title" | "created";
+export type SortDir = "asc" | "desc";
 
 export interface ViewState {
   query: string;
@@ -8,9 +9,10 @@ export interface ViewState {
   type: "BUG" | "FEATURE" | "TAREFA" | null;
   assignee: string | null; // user id
   sort: SortMode;
+  sortDir: SortDir;
 }
 
-export const EMPTY_VIEW: ViewState = { query: "", priority: null, type: null, assignee: null, sort: "manual" };
+export const EMPTY_VIEW: ViewState = { query: "", priority: null, type: null, assignee: null, sort: "manual", sortDir: "asc" };
 
 const PRIORITY_RANK: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAIXA: 3 };
 export const priorityRank = (p?: string | null) => PRIORITY_RANK[p ?? ""] ?? 9;
@@ -30,10 +32,17 @@ export function applyView(columns: ColumnData[], v: ViewState): ColumnData[] {
       return true;
     });
     const sorted = [...cards];
+    const dir = v.sortDir === "desc" ? -1 : 1;
     if (v.sort === "title") {
-      sorted.sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
+      sorted.sort((a, b) => dir * a.title.localeCompare(b.title, "pt-BR"));
+    } else if (v.sort === "created") {
+      // asc = mais antigos primeiro; desc = mais recentes primeiro.
+      sorted.sort((a, b) => dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+    } else if (v.sort === "priority") {
+      // asc = Crítica→Baixa; desc = Baixa→Crítica. Desempata por position.
+      sorted.sort((a, b) => dir * (priorityRank(a.priority) - priorityRank(b.priority)) || a.position - b.position);
     } else {
-      // "manual" (default) e "priority": agrupa por prioridade, desempata por position.
+      // "manual" (default): agrupa por prioridade, desempata por position.
       sorted.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.position - b.position);
     }
     return { ...col, cards: sorted };

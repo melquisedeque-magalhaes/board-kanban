@@ -141,7 +141,7 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
   return (
     <DndContext
       id="board"
-      sensors={filtering ? [] : sensors}
+      sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -155,7 +155,7 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
           className="overflow-x-auto px-10 pb-6 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex w-max items-start gap-3.5">
-            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} />)}
+            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={filtering} />)}
           </div>
         </div>
 
