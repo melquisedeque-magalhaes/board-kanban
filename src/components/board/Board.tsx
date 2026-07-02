@@ -95,37 +95,41 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
     if (!overCol) return;
 
     const prev = columns;
-    // novo estado otimista
-    const next = columns.map((c) => ({ ...c, cards: c.cards.filter((x) => x.id !== active.id) }));
-    const target = next.find((c) => c.id === overCol.id)!;
-    const overIdx = target.cards.findIndex((x) => x.id === over.id);
-    const insertAt = overIdx === -1 ? target.cards.length : overIdx;
+
+    // O board é sempre agrupado por prioridade (ver applyView); o drag só reordena
+    // DENTRO da mesma faixa. Calculamos a position entre os vizinhos de MESMA
+    // prioridade em torno do ponto de drop (na ordem exibida = `display`).
+    const dispCards = display.find((c) => c.id === overCol.id)?.cards ?? [];
+    let overIdx = dispCards.findIndex((x) => x.id === over.id);
+    if (overIdx === -1) overIdx = dispCards.length; // drop na coluna/fim
+    const mp = from.card.priority ?? null;
+    const band = dispCards
+      .map((x, i) => ({ x, i }))
+      .filter(({ x }) => x.id !== String(active.id) && (x.priority ?? null) === mp);
+    const p = [...band].reverse().find(({ i }) => i < overIdx)?.x.position ?? null;
+    const n = band.find(({ i }) => i >= overIdx)?.x.position ?? null;
+    let position: number;
+    if (p == null && n == null) position = 1000;
+    else if (p == null) position = n! - 1000;
+    else if (n == null) position = p + 1000;
+    else position = (p + n) / 2;
 
     // Arrastou p/ "Em Andamento" → o logado vira responsável (espelha o server).
     const assignSelf =
       !!currentUser &&
       /andamento/i.test(overCol.name) &&
       !from.card.assignees.some((a) => a.id === currentUser.id);
-    const moved = assignSelf
-      ? { ...from.card, assignees: [...from.card.assignees, currentUser!] }
-      : from.card;
-    target.cards.splice(insertAt, 0, moved);
-    setColumns(next);
+    const moved = {
+      ...from.card,
+      position,
+      assignees: assignSelf ? [...from.card.assignees, currentUser!] : from.card.assignees,
+    };
 
-    // position no cliente: meio dos vizinhos (nunca usa o próprio card como vizinho)
-    const before = target.cards[insertAt - 1]?.id;
-    const after = target.cards[insertAt + 1]?.id;
-    const posOf = (id?: string) =>
-      id && id !== String(active.id)
-        ? prev.flatMap((c) => c.cards).find((x) => x.id === id)
-        : undefined;
-    const p = posOf(before)?.position ?? null;
-    const n = posOf(after)?.position ?? null;
-    let position: number;
-    if (p == null && n == null) position = 1000;
-    else if (p == null) position = n! - 1000;
-    else if (n == null) position = p + 1000;
-    else position = (p + n) / 2;
+    // Estado otimista: remove o card de todas as colunas e o insere na coluna alvo
+    // (a ordem final vem de applyView, que reordena por prioridade+position).
+    const next = columns.map((c) => ({ ...c, cards: c.cards.filter((x) => x.id !== active.id) }));
+    next.find((c) => c.id === overCol.id)!.cards.push(moved);
+    setColumns(next);
 
     const res = await fetch(`/api/cards/${active.id}`, {
       method: "PATCH", headers: { "content-type": "application/json" },

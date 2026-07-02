@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "Priority" ADD VALUE 'CRITICA' BEFORE 'ALTA';

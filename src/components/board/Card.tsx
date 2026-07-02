@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem,
+} from "@/components/ui/context-menu";
 import { PRIORITY, CARD_TYPE, avatarColor, initials, type Swatch } from "./colors";
 
 export function cardLink(id: string) {
@@ -18,7 +21,7 @@ export function cardLink(id: string) {
 export interface CardData {
   id: string; code?: string | null; title: string;
   position: number;
-  priority?: "ALTA" | "MEDIA" | "BAIXA" | null;
+  priority?: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type?: "BUG" | "FEATURE" | "TAREFA" | null;
   version?: string | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
@@ -154,38 +157,51 @@ export function Card({
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={() => onOpen?.(card.id)}
-      onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); }}
-      className="group/card relative cursor-grab active:cursor-grabbing"
-    >
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label="Ações do card"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute right-1.5 top-1.5 z-10 hidden rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground group-hover/card:block data-[state=open]:block"
-          >
-            <MoreHorizontal className="size-4" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuItem onClick={copyLink}>
-            <Link2 className="size-4" /> Copiar link
-          </DropdownMenuItem>
-          {onArchive && (
-            <DropdownMenuItem onClick={() => onArchive(card.id)}>
-              <Archive className="size-4" /> Arquivar card
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <CardView card={card} statusName={statusName} statusSwatch={statusSwatch} />
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={setNodeRef}
+          style={style}
+          {...attributes}
+          {...listeners}
+          onClick={() => onOpen?.(card.id)}
+          className="group/card relative cursor-grab active:cursor-grabbing"
+        >
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Ações do card"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute right-1.5 top-1.5 z-10 hidden rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground group-hover/card:block data-[state=open]:block"
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onSelect={copyLink}>
+                <Link2 className="size-4" /> Copiar link
+              </DropdownMenuItem>
+              {onArchive && (
+                <DropdownMenuItem onSelect={() => onArchive(card.id)}>
+                  <Archive className="size-4" /> Arquivar card
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <CardView card={card} statusName={statusName} statusSwatch={statusSwatch} />
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={copyLink}>
+          <Link2 className="size-4" /> Copiar link
+        </ContextMenuItem>
+        {onArchive && (
+          <ContextMenuItem onSelect={() => onArchive(card.id)}>
+            <Archive className="size-4" /> Arquivar card
+          </ContextMenuItem>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
