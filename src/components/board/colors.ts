@@ -24,6 +24,7 @@ export function columnSwatch(name: string): Swatch {
 }
 
 export const PRIORITY: Record<string, Swatch & { label: string }> = {
+  CRITICA: { label: "Crítica", bg: "#e5484d", text: "#ffffff" },
   ALTA: { label: "Alta", bg: "#ffe0db", text: "#b4453a" },
   MEDIA: { label: "Média", bg: "#fdecc8", text: "#9a6c16" },
   BAIXA: { label: "Baixa", bg: "#e3e2e0", text: "#5f5e5b" },

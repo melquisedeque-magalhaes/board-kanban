@@ -43,7 +43,7 @@ interface CardDetail {
   code: string | null;
   title: string;
   details: string | null;
-  priority: "ALTA" | "MEDIA" | "BAIXA" | null;
+  priority: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type: "BUG" | "FEATURE" | "TAREFA" | null;
   version: string | null;
   dueDate: string | null;
@@ -63,6 +63,7 @@ const isImage = (a: Attachment) =>
 
 const PR_OPTS = [
   { v: "none", label: "Vazio" },
+  { v: "CRITICA", label: "Crítica" },
   { v: "ALTA", label: "Alta" },
   { v: "MEDIA", label: "Média" },
   { v: "BAIXA", label: "Baixa" },

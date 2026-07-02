@@ -38,6 +38,22 @@ async function resolveLabelIds(refs: string[]): Promise<string[]> {
   return labels.map((l) => l.id);
 }
 
+const CARD_CODE_PREFIX = "TI-";
+
+// Próxima Chave sequencial global (TI-1, TI-2, …). Considera cards arquivados
+// para nunca reusar número. Baseado no maior sufixo numérico existente.
+export async function nextCardCode(): Promise<string> {
+  const rows = await db.card.findMany({
+    where: { code: { startsWith: CARD_CODE_PREFIX } },
+    select: { code: true },
+  });
+  const max = rows.reduce((m, { code }) => {
+    const n = Number(code!.slice(CARD_CODE_PREFIX.length));
+    return Number.isInteger(n) && n > m ? n : m;
+  }, 0);
+  return `${CARD_CODE_PREFIX}${max + 1}`;
+}
+
 export async function listColumns() {
   return db.column.findMany({
     orderBy: { position: "asc" },
@@ -181,11 +197,12 @@ export async function createCard(input: CreateCardInput) {
   const position = positionBetween(last[0]?.position ?? null, null);
   const assigneeIds = await resolveUserIds(input.assignees ?? []);
   const labelIds = await resolveLabelIds(input.labels ?? []);
+  const code = input.code?.trim() ? input.code.trim() : await nextCardCode();
   return db.card.create({
     data: {
       columnId, title: input.title, details: input.details ?? input.description,
       priority: input.priority, type: input.type, version: input.version,
-      code: input.code, position,
+      code, position,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
     },

@@ -390,4 +390,4 @@ MIT
 
 ## Contato
 
-Para dúvidas ou problemas, abra uma issue no repositório.
+Para dúvidas ou problemas, abra uma issue no repositório

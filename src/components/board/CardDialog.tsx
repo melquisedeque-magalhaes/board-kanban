@@ -79,6 +79,7 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="none">Sem prioridade</SelectItem>
+                  <SelectItem value="CRITICA">Crítica</SelectItem>
                   <SelectItem value="ALTA">Alta</SelectItem>
                   <SelectItem value="MEDIA">Média</SelectItem>
                   <SelectItem value="BAIXA">Baixa</SelectItem>
