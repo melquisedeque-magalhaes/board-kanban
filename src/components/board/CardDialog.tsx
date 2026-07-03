@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -12,18 +12,45 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
+const DRAFT_KEY = "cardDraft";
+
+interface Draft { title?: string; priority?: string; type?: string; version?: string }
+
+function readDraft(): Draft {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}"); } catch { return {}; }
+}
+
 export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
   columns: ColumnData[];
   initialColumnId: string;
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const draft = readDraft();
   const [columnId, setColumnId] = useState(initialColumnId);
-  const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState("");
-  const [type, setType] = useState("");
-  const [version, setVersion] = useState("");
+  const [title, setTitle] = useState(draft.title ?? "");
+  const [priority, setPriority] = useState(draft.priority ?? "");
+  const [type, setType] = useState(draft.type ?? "");
+  const [version, setVersion] = useState(draft.version ?? "");
   const [saving, setSaving] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  // Persiste o rascunho enquanto edita (não some ao fechar sem salvar).
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, priority, type, version }));
+    } catch { /* storage bloqueado */ }
+  }, [title, priority, type, version]);
+
+  const hasContent = !!(title.trim() || priority || type || version.trim());
+
+  function clearDraft() {
+    setTitle(""); setPriority(""); setType(""); setVersion("");
+    setColumnId(initialColumnId);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage bloqueado */ }
+    setConfirmClear(false);
+  }
 
   async function save() {
     if (!title.trim() || saving) return;
@@ -39,6 +66,7 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
     });
     setSaving(false);
     if (!res.ok) { toast.error("Falha ao criar card"); return; }
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage bloqueado */ }
     onCreated(); onClose();
   }
 
@@ -114,11 +142,36 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
           </Field>
         </FieldGroup>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "Criando…" : "Criar"}</Button>
+        <DialogFooter className="sm:justify-between">
+          <Button
+            variant="ghost"
+            className="text-muted-foreground hover:text-foreground"
+            disabled={!hasContent}
+            onClick={() => setConfirmClear(true)}
+          >
+            Limpar
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+            <Button onClick={save} disabled={saving}>{saving ? "Criando…" : "Criar"}</Button>
+          </div>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog open={confirmClear} onOpenChange={(o) => { if (!o) setConfirmClear(false); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Limpar informações?</DialogTitle>
+            <DialogDescription>
+              O rascunho deste card (título, prioridade, tipo e versão) será apagado. Não pode ser desfeito.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmClear(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={clearDraft}>Limpar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

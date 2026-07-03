@@ -2,7 +2,7 @@
 import { useState } from "react";
 import {
   Users, Table, Columns3, Funnel, ArrowUpDown, Zap, Search,
-  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon, Archive, UserPen,
+  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon, Archive, UserPen, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ProfileDialog } from "./ProfileDialog";
@@ -204,7 +204,7 @@ export function Chrome({ view, setView, users, online, onNew, onOpenArchived }: 
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-44 flex-col gap-0.5">
-              {([["manual", "Manual"], ["priority", "Prioridade"], ["title", "Título (A–Z)"]] as [SortMode, string][])
+              {([["manual", "Manual"], ["priority", "Prioridade"], ["title", "Título"], ["created", "Data de criação"]] as [SortMode, string][])
                 .map(([k, label]) => (
                   <Button key={k} variant="ghost" size="sm" className="justify-start"
                     onClick={() => setView({ ...view, sort: k })}>
@@ -212,6 +212,16 @@ export function Chrome({ view, setView, users, online, onNew, onOpenArchived }: 
                     {label}
                   </Button>
                 ))}
+              <div className="my-1 h-px bg-border" />
+              <Button
+                variant="ghost" size="sm" className="justify-start"
+                disabled={view.sort === "manual"}
+                onClick={() => setView({ ...view, sortDir: view.sortDir === "asc" ? "desc" : "asc" })}
+              >
+                {view.sortDir === "asc"
+                  ? <><ArrowUp data-icon="inline-start" /> Crescente (A→Z, antigo→novo)</>
+                  : <><ArrowDown data-icon="inline-start" /> Decrescente (Z→A, novo→antigo)</>}
+              </Button>
             </PopoverContent>
           </Popover>
 
