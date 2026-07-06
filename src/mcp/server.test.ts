@@ -13,6 +13,7 @@ vi.mock("@/server/cards", () => ({
   unassignCard: vi.fn(),
   moveCard: vi.fn(),
   addComment: vi.fn(),
+  updateComment: vi.fn(),
   addAttachment: vi.fn(),
   listAttachments: vi.fn(),
   listUsers: vi.fn(),
@@ -27,7 +28,7 @@ describe("buildMcpServer", () => {
     expect(s).toBeTruthy();
   });
 
-  it("registra exatamente as 16 tools esperadas", () => {
+  it("registra exatamente as 17 tools esperadas", () => {
     const s = buildMcpServer();
     const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
       ._registeredTools;
@@ -36,7 +37,7 @@ describe("buildMcpServer", () => {
         "add_attachment", "add_comment", "archive_card", "assign_card", "create_card",
         "get_card", "list_archived_cards", "list_attachments", "list_cards",
         "list_columns", "list_labels", "list_users", "move_card", "unarchive_card",
-        "unassign_card", "update_card",
+        "unassign_card", "update_card", "update_comment",
       ].sort(),
     );
   });

@@ -13,11 +13,13 @@ export function Column({
   onAdd,
   onOpen,
   onArchive,
+  dragDisabled,
 }: {
   column: ColumnData;
   onAdd: (columnId: string) => void;
   onOpen?: (id: string) => void;
   onArchive?: (id: string) => void;
+  dragDisabled?: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: column.id });
   const swatch = columnSwatch(column.name);
@@ -36,7 +38,7 @@ export function Column({
       <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="flex min-h-2 flex-col gap-2">
           {column.cards.map((c) => (
-            <Card key={c.id} card={c} statusName={column.name} statusSwatch={swatch} onOpen={onOpen} onArchive={onArchive} />
+            <Card key={c.id} card={c} statusName={column.name} statusSwatch={swatch} onOpen={onOpen} onArchive={onArchive} dragDisabled={dragDisabled} />
           ))}
         </div>
       </SortableContext>

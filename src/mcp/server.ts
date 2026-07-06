@@ -167,6 +167,15 @@ export function buildMcpServer() {
   );
 
   s.registerTool(
+    "update_comment",
+    {
+      description: "Edita o texto de um comentário existente",
+      inputSchema: { commentId: z.string(), body: z.string() },
+    },
+    async ({ commentId, body }) => json(await cards.updateComment(commentId, body)),
+  );
+
+  s.registerTool(
     "add_attachment",
     {
       description: "Anexa um arquivo/imagem (por URL) a um card ou comentário. Use a URL no markdown do campo details para exibir imagens.",

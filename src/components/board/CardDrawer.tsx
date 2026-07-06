@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
-  FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch,
+  FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
@@ -47,10 +47,16 @@ interface CardDetail {
   type: "BUG" | "FEATURE" | "TAREFA" | null;
   version: string | null;
   dueDate: string | null;
+  createdAt: string;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
   comments: Comment[];
   attachments: Attachment[];
 }
+
+const fmtDateTime = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
 
 const isImage = (a: Attachment) =>
   a.contentType?.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(a.name);
@@ -101,10 +107,11 @@ function MarkdownView({ source }: { source: string }) {
   );
 }
 
-export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchive }: {
+export function CardDrawer({ cardId, columns, users, currentUser, onClose, onChanged, onArchive }: {
   cardId: string | null;
   columns: ColumnData[];
   users: UserLite[];
+  currentUser?: { id: string; name: string; avatarUrl: string | null } | null;
   onClose: () => void;
   onChanged: () => void;
   onArchive?: (id: string) => void;
@@ -113,6 +120,8 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
   const [comment, setComment] = useState("");
   const [pendingAtts, setPendingAtts] = useState<Attachment[]>([]);
   const [editingDetails, setEditingDetails] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingBody, setEditingBody] = useState("");
   const [uploading, setUploading] = useState(false);
   const detailsRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +156,7 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
     setPrevCardId(cardId);
     setComment("");
     setPendingAtts([]);
+    setEditingCommentId(null);
   }
 
   const { data: card = null, isLoading: loading } = useQuery({
@@ -178,6 +188,23 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
     if (!res.ok) { toast.error("Falha ao comentar"); return; }
     setComment("");
     setPendingAtts([]);
+    qc.setQueryData(["card", cardId], await res.json());
+    onChanged();
+  }
+
+  function startEditComment(c: Comment) {
+    setEditingCommentId(c.id);
+    setEditingBody(c.body);
+  }
+
+  async function saveEditComment() {
+    if (!cardId || !editingCommentId || !editingBody.trim()) return;
+    const res = await fetch(`/api/cards/${cardId}/comments/${editingCommentId}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body: editingBody }),
+    });
+    if (!res.ok) { toast.error("Falha ao editar comentário"); return; }
+    setEditingCommentId(null);
     qc.setQueryData(["card", cardId], await res.json());
     onChanged();
   }
@@ -422,6 +449,10 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                   className={inlineField + " w-44"}
                 />
               </Row>
+
+              <Row icon={Clock} label="Criado em">
+                <div className="px-2 py-2 text-sm text-muted-foreground">{fmtDateTime(card.createdAt)}</div>
+              </Row>
             </div>
 
             <Separator />
@@ -540,25 +571,59 @@ export function CardDrawer({ cardId, columns, users, onClose, onChanged, onArchi
                           {initials(c.author?.name ?? "?")}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <span className="text-xs font-medium">{c.author?.name ?? "Alguém"}</span>
-                        {c.body ? <MarkdownView source={c.body} /> : null}
-                        {c.attachments?.length > 0 && (
-                          <div className="mt-0.5 flex flex-wrap gap-2">
-                            {c.attachments.map((a) =>
-                              isImage(a) ? (
-                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={a.url} alt={a.name} className="max-h-40 rounded-md border object-cover" />
-                                </a>
-                              ) : (
-                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer"
-                                  className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs hover:bg-accent">
-                                  <Paperclip className="size-3.5" /> <span className="truncate">{a.name}</span>
-                                </a>
-                              ),
-                            )}
+                      <div className="group/comment flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium">{c.author?.name ?? "Alguém"}</span>
+                          <span className="text-[10px] text-muted-foreground">{fmtDateTime(c.createdAt)}</span>
+                          {c.author?.id && currentUser?.id === c.author.id && editingCommentId !== c.id && (
+                            <button
+                              onClick={() => startEditComment(c)}
+                              className="ml-auto hidden rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground group-hover/comment:block"
+                              aria-label="Editar comentário"
+                            >
+                              <Pencil className="size-3" />
+                            </button>
+                          )}
+                        </div>
+                        {editingCommentId === c.id ? (
+                          <div className="flex flex-col gap-2">
+                            <textarea
+                              value={editingBody}
+                              autoFocus
+                              onChange={(e) => setEditingBody(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEditComment(); }
+                                if (e.key === "Escape") setEditingCommentId(null);
+                              }}
+                              rows={3}
+                              className="block min-h-[72px] w-full resize-y rounded-lg bg-muted/40 p-3 font-mono text-sm leading-relaxed outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                            />
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => setEditingCommentId(null)}>Cancelar</Button>
+                              <Button size="sm" onClick={saveEditComment} disabled={!editingBody.trim()}>Salvar</Button>
+                            </div>
                           </div>
+                        ) : (
+                          <>
+                            {c.body ? <MarkdownView source={c.body} /> : null}
+                            {c.attachments?.length > 0 && (
+                              <div className="mt-0.5 flex flex-wrap gap-2">
+                                {c.attachments.map((a) =>
+                                  isImage(a) ? (
+                                    <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={a.url} alt={a.name} className="max-h-40 rounded-md border object-cover" />
+                                    </a>
+                                  ) : (
+                                    <a key={a.id} href={a.url} target="_blank" rel="noreferrer"
+                                      className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs hover:bg-accent">
+                                      <Paperclip className="size-3.5" /> <span className="truncate">{a.name}</span>
+                                    </a>
+                                  ),
+                                )}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

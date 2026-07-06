@@ -141,7 +141,7 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
   return (
     <DndContext
       id="board"
-      sensors={filtering ? [] : sensors}
+      sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -155,16 +155,16 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
           className="overflow-x-auto px-10 pb-6 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex w-max items-start gap-3.5">
-            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} />)}
+            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={filtering} />)}
           </div>
         </div>
 
-        {/* Barra horizontal sempre visível, grudada no rodapé da viewport. */}
+        {/* Barra horizontal fixa no rodapé da tela (sempre visível), sincronizada. */}
         {overflow && (
           <div
             ref={barRef}
             onScroll={onBarScroll}
-            className="sticky bottom-0 z-30 overflow-x-scroll bg-background/85 backdrop-blur [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/35 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:bg-transparent"
+            className="fixed inset-x-0 bottom-0 z-30 overflow-x-scroll border-t bg-background/85 backdrop-blur [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/35 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:bg-transparent"
           >
             <div style={{ width: contentWidth }} className="h-px" />
           </div>
