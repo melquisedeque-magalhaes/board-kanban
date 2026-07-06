@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
+import type { UserLite } from "./Chrome";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -14,15 +15,16 @@ import {
 
 const DRAFT_KEY = "cardDraft";
 
-interface Draft { title?: string; priority?: string; type?: string; version?: string }
+interface Draft { title?: string; priority?: string; type?: string; version?: string; requestedBy?: string }
 
 function readDraft(): Draft {
   if (typeof window === "undefined") return {};
   try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}"); } catch { return {}; }
 }
 
-export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
+export function CardDialog({ columns, users, initialColumnId, onClose, onCreated }: {
   columns: ColumnData[];
+  users: UserLite[];
   initialColumnId: string;
   onClose: () => void;
   onCreated: () => void;
@@ -33,20 +35,21 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
   const [priority, setPriority] = useState(draft.priority ?? "");
   const [type, setType] = useState(draft.type ?? "");
   const [version, setVersion] = useState(draft.version ?? "");
+  const [requestedBy, setRequestedBy] = useState(draft.requestedBy ?? "");
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
 
   // Persiste o rascunho enquanto edita (não some ao fechar sem salvar).
   useEffect(() => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, priority, type, version }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, priority, type, version, requestedBy }));
     } catch { /* storage bloqueado */ }
-  }, [title, priority, type, version]);
+  }, [title, priority, type, version, requestedBy]);
 
-  const hasContent = !!(title.trim() || priority || type || version.trim());
+  const hasContent = !!(title.trim() || priority || type || version.trim() || requestedBy);
 
   function clearDraft() {
-    setTitle(""); setPriority(""); setType(""); setVersion("");
+    setTitle(""); setPriority(""); setType(""); setVersion(""); setRequestedBy("");
     setColumnId(initialColumnId);
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage bloqueado */ }
     setConfirmClear(false);
@@ -62,6 +65,7 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
         priority: priority || undefined,
         type: type || undefined,
         version: version.trim() || undefined,
+        requestedBy: requestedBy || undefined,
       }),
     });
     setSaving(false);
@@ -139,6 +143,19 @@ export function CardDialog({ columns, initialColumnId, onClose, onCreated }: {
               onChange={(e) => setVersion(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") save(); }}
             />
+          </Field>
+
+          <Field>
+            <FieldLabel>Solicitado por</FieldLabel>
+            <Select value={requestedBy || "none"} onValueChange={(v) => setRequestedBy(v === "none" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="Quem solicitou…" /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="none">Ninguém</SelectItem>
+                  {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </Field>
         </FieldGroup>
 

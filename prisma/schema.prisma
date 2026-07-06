@@ -46,9 +46,12 @@ model Card {
   priority    Priority?
   type        CardType?
   version     String?
+  branchUrl   String?
   dueDate     DateTime?
   archivedAt  DateTime?
   position    Float
+  requestedById String?
+  requestedBy   User?   @relation("CardRequester", fields: [requestedById], references: [id])
   assignees   User[]    @relation("CardAssignees")
   labels      Label[]   @relation("CardLabels")
   comments    Comment[]
@@ -83,6 +86,7 @@ model User {
   avatarUrl        String?
   profileCustomized Boolean  @default(false)
   cards            Card[]    @relation("CardAssignees")
+  requestedCards   Card[]    @relation("CardRequester")
   comments         Comment[]
 }
 

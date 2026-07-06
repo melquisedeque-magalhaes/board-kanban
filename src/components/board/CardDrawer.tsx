@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
+  Package, UserPlus, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
@@ -46,8 +47,10 @@ interface CardDetail {
   priority: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type: "BUG" | "FEATURE" | "TAREFA" | null;
   version: string | null;
+  branchUrl: string | null;
   dueDate: string | null;
   createdAt: string;
+  requestedBy: { id: string; name: string; avatarUrl?: string | null } | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
   comments: Comment[];
   attachments: Attachment[];
@@ -363,13 +366,33 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                 </Select>
               </Row>
 
-              <Row icon={GitBranch} label="Versão">
+              <Row icon={Package} label="Versão">
                 <input
                   defaultValue={card.version ?? ""}
                   placeholder="Ex.: 2.3.1"
                   onBlur={(e) => { if ((e.target.value || null) !== card.version) patch({ version: e.target.value || null }); }}
                   className={inlineField}
                 />
+              </Row>
+
+              <Row icon={GitBranch} label="Branch">
+                <div className="flex items-center gap-1">
+                  <input
+                    defaultValue={card.branchUrl ?? ""}
+                    placeholder="Cole o link da branch/MR…"
+                    onBlur={(e) => { if ((e.target.value || null) !== card.branchUrl) patch({ branchUrl: e.target.value || null }); }}
+                    className={inlineField}
+                  />
+                  {card.branchUrl && (
+                    <a
+                      href={card.branchUrl} target="_blank" rel="noreferrer"
+                      className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      title="Abrir branch"
+                    >
+                      <ExternalLink className="size-4" />
+                    </a>
+                  )}
+                </div>
               </Row>
 
               <Row icon={UsersIcon} label="Responsável">
@@ -415,6 +438,50 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                         </button>
                       );
                     })}
+                  </PopoverContent>
+                </Popover>
+              </Row>
+
+              <Row icon={UserPlus} label="Solicitado por">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className={inlineField + " flex items-center gap-1.5 text-left"}>
+                      {card.requestedBy ? (
+                        <span className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-2">
+                          <Avatar className="size-5">
+                            {card.requestedBy.avatarUrl ? <AvatarImage src={card.requestedBy.avatarUrl} alt={card.requestedBy.name} /> : null}
+                            <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(card.requestedBy.name) }}>
+                              {initials(card.requestedBy.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs">{card.requestedBy.name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Quem solicitou…</span>
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-60 p-1">
+                    <button
+                      onClick={() => patch({ requestedBy: null })}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent">
+                      <X className="size-4" /> <span className="flex-1 text-left">Ninguém</span>
+                      {!card.requestedBy && <Check className="size-4" />}
+                    </button>
+                    {users.map((u) => (
+                      <button key={u.id}
+                        onClick={() => patch({ requestedBy: u.id })}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+                        <Avatar className="size-5">
+                          {u.avatarUrl ? <AvatarImage src={u.avatarUrl} alt={u.name} /> : null}
+                          <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(u.name) }}>
+                            {initials(u.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="flex-1 truncate text-left">{u.name}</span>
+                        {card.requestedBy?.id === u.id && <Check className="size-4" />}
+                      </button>
+                    ))}
                   </PopoverContent>
                 </Popover>
               </Row>

@@ -6,6 +6,7 @@ import type {
 
 const cardInclude = {
   assignees: true,
+  requestedBy: true,
   labels: true,
   _count: { select: { comments: true } },
 } as const;
@@ -28,6 +29,13 @@ export async function resolveUserIds(refs: string[]): Promise<string[]> {
     where: { OR: [{ id: { in: refs } }, { name: { in: refs } }, { email: { in: refs } }] },
   });
   return users.map((u) => u.id);
+}
+
+// Resolve um único ref (id/nome/e-mail) para um id, ou null se vazio/não achado.
+async function resolveUserId(ref?: string | null): Promise<string | null> {
+  if (!ref) return null;
+  const [id] = await resolveUserIds([ref]);
+  return id ?? null;
 }
 
 async function resolveLabelIds(refs: string[]): Promise<string[]> {
@@ -198,10 +206,12 @@ export async function createCard(input: CreateCardInput) {
   const assigneeIds = await resolveUserIds(input.assignees ?? []);
   const labelIds = await resolveLabelIds(input.labels ?? []);
   const code = input.code?.trim() ? input.code.trim() : await nextCardCode();
+  const requestedById = await resolveUserId(input.requestedBy);
   return db.card.create({
     data: {
       columnId, title: input.title, details: input.details ?? input.description,
       priority: input.priority, type: input.type, version: input.version,
+      branchUrl: input.branchUrl, requestedById,
       code, position,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
@@ -219,11 +229,15 @@ export async function updateCard(id: string, input: UpdateCardInput) {
     : undefined;
   const dueDate =
     input.dueDate === undefined ? undefined : input.dueDate === null ? null : new Date(input.dueDate);
+  // undefined = não mexe; null = limpa; string = resolve para id.
+  const requestedById =
+    input.requestedBy === undefined ? undefined : await resolveUserId(input.requestedBy);
   return db.card.update({
     where: { id },
     data: {
       title: input.title, details: input.details !== undefined ? input.details : input.description,
       priority: input.priority, type: input.type, version: input.version,
+      branchUrl: input.branchUrl, requestedById,
       code: input.code, dueDate, assignees, labels,
     },
     include: cardInclude,

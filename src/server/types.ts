@@ -17,6 +17,8 @@ export interface CreateCardInput {
   priority?: Priority;
   type?: CardType;
   version?: string;
+  branchUrl?: string;
+  requestedBy?: string; // id, nome ou e-mail
   code?: string;
   assignees?: string[]; // nomes ou ids
   labels?: string[];    // nomes ou ids
@@ -28,6 +30,8 @@ export interface UpdateCardInput {
   priority?: Priority | null;
   type?: CardType | null;
   version?: string | null;
+  branchUrl?: string | null;
+  requestedBy?: string | null; // id, nome ou e-mail
   code?: string | null;
   dueDate?: string | Date | null;
   assignees?: string[];
