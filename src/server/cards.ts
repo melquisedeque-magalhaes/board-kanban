@@ -9,7 +9,7 @@ const cardInclude = {
   requestedBy: true,
   labels: true,
   parent: { select: { id: true, code: true, title: true } },
-  children: { select: { id: true, column: { select: { name: true } } } },
+  children: { where: { archivedAt: null }, select: { id: true, column: { select: { name: true } } } },
   _count: { select: { comments: true } },
 } as const;
 
@@ -111,6 +111,7 @@ export function getCard(id: string) {
       attachments: { where: { commentId: null }, orderBy: { createdAt: "asc" } },
       // Sobrescreve o children resumido de cardInclude: subtarefas precisam de code/title/type.
       children: {
+        where: { archivedAt: null },
         select: { id: true, code: true, title: true, type: true, column: { select: { name: true } } },
         orderBy: { createdAt: "asc" },
       },
@@ -231,6 +232,7 @@ export async function createCard(input: CreateCardInput) {
 }
 
 export async function updateCard(id: string, input: UpdateCardInput) {
+  if (input.parentId === id) throw new Error("Um card não pode ser pai de si mesmo");
   const assignees = input.assignees
     ? { set: (await resolveUserIds(input.assignees)).map((id) => ({ id })) }
     : undefined;

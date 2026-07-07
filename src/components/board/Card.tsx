@@ -23,7 +23,7 @@ export interface CardData {
   position: number;
   createdAt: string;
   priority?: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
-  type?: "BUG" | "FEATURE" | "TAREFA" | null;
+  type?: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
   blocker?: "IMPEDIMENTO" | "AVISO" | null;
   parent?: { id: string; code: string | null; title: string } | null;
   children?: { id: string; column: { name: string } }[];

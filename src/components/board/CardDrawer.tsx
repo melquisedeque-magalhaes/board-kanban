@@ -45,7 +45,7 @@ interface CardDetail {
   title: string;
   details: string | null;
   priority: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
-  type: "BUG" | "FEATURE" | "TAREFA" | null;
+  type: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
   blocker: "IMPEDIMENTO" | "AVISO" | null;
   blockerReason: string | null;
   parent: { id: string; code: string | null; title: string } | null;

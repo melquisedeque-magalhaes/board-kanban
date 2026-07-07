@@ -12,7 +12,7 @@ vi.mock("@/lib/db", () => ({ db: dbMock }));
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
-  createCard, updateCard,
+  createCard, updateCard, getCard,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
@@ -131,6 +131,22 @@ describe("updateCard blocker", () => {
     await updateCard("c1", { parentId: "p9" });
     expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ parentId: "p9" }),
+    }));
+  });
+  it("rejeita um card sendo pai de si mesmo", async () => {
+    await expect(updateCard("c1", { parentId: "c1" })).rejects.toThrow();
+    expect(dbMock.card.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("getCard", () => {
+  it("filtra subtarefas arquivadas no include de children", async () => {
+    dbMock.card.findUnique.mockResolvedValue({});
+    await getCard("x");
+    expect(dbMock.card.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        children: expect.objectContaining({ where: { archivedAt: null } }),
+      }),
     }));
   });
 });
