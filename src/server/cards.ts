@@ -109,6 +109,11 @@ export function getCard(id: string) {
       },
       // Anexos do card (não os de comentário) — comentários trazem os seus.
       attachments: { where: { commentId: null }, orderBy: { createdAt: "asc" } },
+      // Sobrescreve o children resumido de cardInclude: subtarefas precisam de code/title/type.
+      children: {
+        select: { id: true, code: true, title: true, type: true, column: { select: { name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 }
