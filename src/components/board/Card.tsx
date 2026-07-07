@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageCircle, MoreHorizontal, Link2, Archive } from "lucide-react";
+import { MessageCircle, MoreHorizontal, Link2, Archive, Ban, TriangleAlert, CornerLeftUp, CircleCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import {
 import {
   ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem,
 } from "@/components/ui/context-menu";
-import { PRIORITY, CARD_TYPE, avatarColor, initials, type Swatch } from "./colors";
+import { PRIORITY, CARD_TYPE, BLOCKER, avatarColor, initials, type Swatch } from "./colors";
 
 export function cardLink(id: string) {
   return `${typeof window !== "undefined" ? window.location.origin : ""}/?card=${id}`;
@@ -24,6 +24,9 @@ export interface CardData {
   createdAt: string;
   priority?: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type?: "BUG" | "FEATURE" | "TAREFA" | null;
+  blocker?: "IMPEDIMENTO" | "AVISO" | null;
+  parent?: { id: string; code: string | null; title: string } | null;
+  children?: { id: string; column: { name: string } }[];
   version?: string | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
   labels: { id: string; name: string; color: string }[];
@@ -44,13 +47,26 @@ export function CardView({
 }) {
   const pr = card.priority ? PRIORITY[card.priority] : null;
   const ty = card.type ? CARD_TYPE[card.type] : null;
+  const bl = card.blocker ? BLOCKER[card.blocker] : null;
+  const kids = card.children ?? [];
+  const kidsDone = kids.filter((k) => /(done|conclu)/i.test(k.column.name)).length;
   return (
     <div
       className={
-        "flex flex-col gap-2.5 rounded-lg border bg-card p-3 text-card-foreground hover:border-foreground/20 " +
+        "flex flex-col gap-2.5 rounded-lg bg-card p-3 text-card-foreground hover:border-foreground/20 " +
+        (bl ? "border-l-4 " : "border ") +
         (dragging ? "shadow-lg" : "shadow-sm")
       }
+      style={bl ? { borderColor: bl.border, borderLeftColor: bl.border } : undefined}
     >
+      {card.parent ? (
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <CornerLeftUp className="size-3 shrink-0" />
+          <span className="truncate">
+            {card.parent.code ? `${card.parent.code} · ` : ""}{card.parent.title}
+          </span>
+        </div>
+      ) : null}
       <div className="text-sm leading-snug">
         {card.code ? <span className="font-medium text-muted-foreground">{card.code} · </span> : null}
         {card.title}
@@ -101,6 +117,21 @@ export function CardView({
         {card.version ? (
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             v{card.version}
+          </span>
+        ) : null}
+        {bl ? (
+          <Badge
+            variant="secondary"
+            className="gap-1 border-transparent font-medium"
+            style={{ background: bl.bg, color: bl.text }}
+          >
+            {card.blocker === "IMPEDIMENTO" ? <Ban className="size-3" /> : <TriangleAlert className="size-3" />}
+            {bl.label}
+          </Badge>
+        ) : null}
+        {kids.length > 0 ? (
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <CircleCheck className="size-3" /> {kidsDone}/{kids.length}
           </span>
         ) : null}
         {card._count.comments > 0 ? (
