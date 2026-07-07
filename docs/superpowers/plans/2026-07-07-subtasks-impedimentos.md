@@ -11,6 +11,7 @@
 ## Global Constraints
 
 - Prisma migrations via `npm run db:migrate` (= `prisma migrate dev`). Naming: `AAAAMMDDHHMMSS_descricao`.
+- Node v22.6.0 quebra o Prisma CLI (`ERR_REQUIRE_ESM`). Prefixar TODO comando prisma/next-build com `NODE_OPTIONS="--experimental-require-module"`. Ex.: `NODE_OPTIONS="--experimental-require-module" npm run db:migrate -- --name X`.
 - Testes: Vitest com `db` mockado (`vi.mock("@/lib/db")`) — unit, sem DB real. Rodar: `npm test`.
 - Lint: `npm run lint` (eslint). Sem warnings novos.
 - Copy da UI em pt-BR, sentence case, voz ativa (frontend-design: "Adicionar subtarefa", não "Submit").
