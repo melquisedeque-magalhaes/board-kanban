@@ -1,5 +1,5 @@
-import type { Priority, CardType } from "@prisma/client";
-export type { Priority, CardType };
+import type { Priority, CardType, Blocker } from "@prisma/client";
+export type { Priority, CardType, Blocker };
 
 export interface CardFilter {
   columnId?: string;
@@ -22,6 +22,9 @@ export interface CreateCardInput {
   code?: string;
   assignees?: string[]; // nomes ou ids
   labels?: string[];    // nomes ou ids
+  parentId?: string;
+  blocker?: Blocker;
+  blockerReason?: string;
 }
 export interface UpdateCardInput {
   title?: string;
@@ -36,4 +39,7 @@ export interface UpdateCardInput {
   dueDate?: string | Date | null;
   assignees?: string[];
   labels?: string[];
+  parentId?: string | null;
+  blocker?: Blocker | null;
+  blockerReason?: string | null;
 }

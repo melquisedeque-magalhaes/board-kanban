@@ -10,7 +10,10 @@ const dbMock = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
-import { resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment } from "./cards";
+import {
+  resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
+  createCard, updateCard,
+} from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -92,5 +95,42 @@ describe("addComment", () => {
     dbMock.comment.create.mockResolvedValue({ id: "cm2" });
     await addComment("card1", "texto");
     expect(dbMock.attachment.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("createCard subtask/blocker", () => {
+  it("grava parentId e blocker ao criar", async () => {
+    dbMock.column.findFirst.mockResolvedValue({ id: "col1" });
+    dbMock.card.findMany.mockResolvedValue([]);      // sem cards → position base
+    dbMock.card.findMany.mockResolvedValueOnce([]);  // last position
+    dbMock.user.findMany.mockResolvedValue([]);
+    dbMock.label.findMany.mockResolvedValue([]);
+    dbMock.card.create.mockResolvedValue({ id: "new1" });
+    await createCard({
+      columnName: "A Fazer", title: "Corrigir X", type: "BUG",
+      parentId: "parent1", blocker: "IMPEDIMENTO", blockerReason: "esperando API",
+    });
+    expect(dbMock.card.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        parentId: "parent1", blocker: "IMPEDIMENTO", blockerReason: "esperando API",
+      }),
+    }));
+  });
+});
+
+describe("updateCard blocker", () => {
+  it("limpa blocker com null e seta motivo", async () => {
+    dbMock.card.update.mockResolvedValue({ id: "c1" });
+    await updateCard("c1", { blocker: null, blockerReason: null });
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ blocker: null, blockerReason: null }),
+    }));
+  });
+  it("vincula parentId no update", async () => {
+    dbMock.card.update.mockResolvedValue({ id: "c1" });
+    await updateCard("c1", { parentId: "p9" });
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ parentId: "p9" }),
+    }));
   });
 });

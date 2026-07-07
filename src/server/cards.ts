@@ -8,6 +8,8 @@ const cardInclude = {
   assignees: true,
   requestedBy: true,
   labels: true,
+  parent: { select: { id: true, code: true, title: true } },
+  children: { select: { id: true, column: { select: { name: true } } } },
   _count: { select: { comments: true } },
 } as const;
 
@@ -213,6 +215,9 @@ export async function createCard(input: CreateCardInput) {
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code, position,
+      parentId: input.parentId ?? null,
+      blocker: input.blocker ?? null,
+      blockerReason: input.blockerReason ?? null,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
     },
@@ -239,6 +244,9 @@ export async function updateCard(id: string, input: UpdateCardInput) {
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code: input.code, dueDate, assignees, labels,
+      parentId: input.parentId,
+      blocker: input.blocker,
+      blockerReason: input.blockerReason,
     },
     include: cardInclude,
   });
