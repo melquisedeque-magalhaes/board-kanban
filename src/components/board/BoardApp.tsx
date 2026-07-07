@@ -113,6 +113,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
       {createCol && (
         <CardDialog
           columns={columns}
+          users={users}
           initialColumnId={createCol}
           onClose={() => setCreateCol(null)}
           onCreated={refetch}
