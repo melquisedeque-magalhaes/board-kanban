@@ -130,6 +130,7 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
                   <SelectItem value="BUG">Bug</SelectItem>
                   <SelectItem value="FEATURE">Feature</SelectItem>
                   <SelectItem value="TAREFA">Tarefa</SelectItem>
+                  <SelectItem value="SUBTASK">Subtask</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>

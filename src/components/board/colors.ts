@@ -34,6 +34,13 @@ export const CARD_TYPE: Record<string, Swatch & { label: string }> = {
   BUG: { label: "Bug", bg: "#ffe2dd", text: "#5d2117" },
   FEATURE: { label: "Feature", bg: "#d3e5ef", text: "#183347" },
   TAREFA: { label: "Tarefa", bg: "#dbeddb", text: "#1c3829" },
+  SUBTASK: { label: "Subtask", bg: "#e8e3f7", text: "#4b2e83" },
+};
+
+// Bloqueio do card: impedimento (vermelho, trava) vs aviso (âmbar, atenção).
+export const BLOCKER: Record<string, Swatch & { label: string; border: string }> = {
+  IMPEDIMENTO: { label: "Impedimento", bg: "#ffe2dd", text: "#a3231a", border: "#e5484d" },
+  AVISO: { label: "Aviso", bg: "#fdecc8", text: "#9a6c16", border: "#e8a72f" },
 };
 
 // Cor do avatar derivada do nome (estável).

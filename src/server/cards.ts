@@ -8,6 +8,8 @@ const cardInclude = {
   assignees: true,
   requestedBy: true,
   labels: true,
+  parent: { select: { id: true, code: true, title: true } },
+  children: { where: { archivedAt: null }, select: { id: true, column: { select: { name: true } } } },
   _count: { select: { comments: true } },
 } as const;
 
@@ -107,6 +109,12 @@ export function getCard(id: string) {
       },
       // Anexos do card (não os de comentário) — comentários trazem os seus.
       attachments: { where: { commentId: null }, orderBy: { createdAt: "asc" } },
+      // Sobrescreve o children resumido de cardInclude: subtarefas precisam de code/title/type.
+      children: {
+        where: { archivedAt: null },
+        select: { id: true, code: true, title: true, type: true, column: { select: { name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 }
@@ -213,6 +221,9 @@ export async function createCard(input: CreateCardInput) {
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code, position,
+      parentId: input.parentId ?? null,
+      blocker: input.blocker ?? null,
+      blockerReason: input.blockerReason ?? null,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
     },
@@ -221,6 +232,7 @@ export async function createCard(input: CreateCardInput) {
 }
 
 export async function updateCard(id: string, input: UpdateCardInput) {
+  if (input.parentId === id) throw new Error("Um card não pode ser pai de si mesmo");
   const assignees = input.assignees
     ? { set: (await resolveUserIds(input.assignees)).map((id) => ({ id })) }
     : undefined;
@@ -239,6 +251,9 @@ export async function updateCard(id: string, input: UpdateCardInput) {
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code: input.code, dueDate, assignees, labels,
+      parentId: input.parentId,
+      blocker: input.blocker,
+      blockerReason: input.blockerReason,
     },
     include: cardInclude,
   });

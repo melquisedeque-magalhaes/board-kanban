@@ -2,8 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as cards from "@/server/cards";
 
-const priority = z.enum(["ALTA", "MEDIA", "BAIXA"]);
-const cardType = z.enum(["BUG", "FEATURE", "TAREFA"]);
+const priority = z.enum(["CRITICA", "ALTA", "MEDIA", "BAIXA"]);
+const cardType = z.enum(["BUG", "FEATURE", "TAREFA", "SUBTASK"]);
+const blocker = z.enum(["IMPEDIMENTO", "AVISO"]);
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
@@ -52,13 +53,16 @@ export function buildMcpServer() {
         description: z.string().optional().describe("(legado) cai em details — use details"),
         details: z.string().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
-        type: cardType.optional().describe("Tipo do card: BUG, FEATURE ou TAREFA"),
+        type: cardType.optional().describe("Tipo: BUG, FEATURE, TAREFA ou SUBTASK"),
         version: z.string().optional().describe("Versão (ex.: 2.3.1)"),
         branchUrl: z.string().optional().describe("Link da branch/MR (ex.: URL do GitLab/GitHub)"),
         requestedBy: z.string().optional().describe("Quem solicitou — id, nome ou e-mail do usuário"),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),
+        parentId: z.string().optional().describe("id do card pai (torna este card uma subtarefa)"),
+        blocker: blocker.optional().describe("Impedimento ou Aviso"),
+        blockerReason: z.string().optional().describe("Motivo do impedimento/aviso"),
       },
     },
     async (a) => json(await cards.createCard(a as cards.CreateCardInput)),
@@ -74,13 +78,16 @@ export function buildMcpServer() {
         description: z.string().optional().describe("(legado) cai em details — use details"),
         details: z.string().nullable().optional().describe("Descrição rica em markdown"),
         priority: priority.optional(),
-        type: cardType.nullable().optional().describe("Tipo do card: BUG, FEATURE ou TAREFA"),
+        type: cardType.nullable().optional().describe("Tipo do card: BUG, FEATURE, TAREFA ou SUBTASK"),
         version: z.string().nullable().optional().describe("Versão (ex.: 2.3.1)"),
         branchUrl: z.string().nullable().optional().describe("Link da branch/MR (null limpa)"),
         requestedBy: z.string().nullable().optional().describe("Quem solicitou — id, nome ou e-mail (null limpa)"),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),
+        parentId: z.string().nullable().optional().describe("id do card pai (null desvincula)"),
+        blocker: blocker.nullable().optional().describe("Impedimento/Aviso (null limpa)"),
+        blockerReason: z.string().nullable().optional().describe("Motivo (null limpa)"),
       },
     },
     async ({ id, ...rest }) =>

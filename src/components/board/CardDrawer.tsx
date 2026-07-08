@@ -6,12 +6,12 @@ import remarkGfm from "remark-gfm";
 import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
-  Package, UserPlus, ExternalLink,
+  Package, UserPlus, ExternalLink, Ban, TriangleAlert, ListTree, CornerLeftUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
 import type { UserLite } from "./Chrome";
-import { avatarColor, initials, columnSwatch } from "./colors";
+import { avatarColor, initials, columnSwatch, CARD_TYPE, BLOCKER } from "./colors";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,11 @@ interface CardDetail {
   title: string;
   details: string | null;
   priority: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
-  type: "BUG" | "FEATURE" | "TAREFA" | null;
+  type: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
+  blocker: "IMPEDIMENTO" | "AVISO" | null;
+  blockerReason: string | null;
+  parent: { id: string; code: string | null; title: string } | null;
+  children: { id: string; code: string | null; title: string; type: string | null; column: { name: string } }[];
   version: string | null;
   branchUrl: string | null;
   dueDate: string | null;
@@ -77,6 +81,7 @@ const TYPE_OPTS = [
   { v: "BUG", label: "Bug" },
   { v: "FEATURE", label: "Feature" },
   { v: "TAREFA", label: "Tarefa" },
+  { v: "SUBTASK", label: "Subtask" },
 ];
 
 function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
@@ -110,7 +115,7 @@ function MarkdownView({ source }: { source: string }) {
   );
 }
 
-export function CardDrawer({ cardId, columns, users, currentUser, onClose, onChanged, onArchive }: {
+export function CardDrawer({ cardId, columns, users, currentUser, onClose, onChanged, onArchive, onOpen }: {
   cardId: string | null;
   columns: ColumnData[];
   users: UserLite[];
@@ -118,6 +123,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
   onClose: () => void;
   onChanged: () => void;
   onArchive?: (id: string) => void;
+  onOpen?: (id: string) => void;
 }) {
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
@@ -126,6 +132,9 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [addingSub, setAddingSub] = useState(false);
+  const [subTitle, setSubTitle] = useState("");
+  const [subType, setSubType] = useState<"SUBTASK" | "BUG">("SUBTASK");
   const detailsRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commentFileRef = useRef<HTMLInputElement>(null);
@@ -160,6 +169,9 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
     setComment("");
     setPendingAtts([]);
     setEditingCommentId(null);
+    setAddingSub(false);
+    setSubTitle("");
+    setSubType("SUBTASK");
   }
 
   const { data: card = null, isLoading: loading } = useQuery({
@@ -283,6 +295,19 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
     onChanged();
   }
 
+  async function createSubtask() {
+    if (!cardId || !subTitle.trim()) return;
+    const firstCol = columns[0]?.id;
+    const res = await fetch("/api/cards", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ columnId: firstCol, title: subTitle, type: subType, parentId: cardId }),
+    });
+    if (!res.ok) { toast.error("Falha ao criar subtarefa"); return; }
+    setSubTitle(""); setAddingSub(false);
+    await qc.invalidateQueries({ queryKey: ["card", cardId] });
+    onChanged();
+  }
+
   function toggleAssignee(userId: string) {
     if (!card) return;
     const has = card.assignees.some((a) => a.id === userId);
@@ -296,6 +321,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
   const due = card?.dueDate ? card.dueDate.slice(0, 10) : "";
   const desc = card?.details ?? "";
   const hasDesc = desc.trim().length > 0;
+  const bl = card?.blocker ? BLOCKER[card.blocker] : null;
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -318,6 +344,16 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
         ) : (
           <>
             <SheetHeader className="px-8 pb-3 pt-8">
+              {bl ? (
+                <Badge
+                  variant="secondary"
+                  className="w-fit gap-1 border-transparent font-medium"
+                  style={{ background: bl.bg, color: bl.text }}
+                >
+                  {card.blocker === "IMPEDIMENTO" ? <Ban className="size-3" /> : <TriangleAlert className="size-3" />}
+                  {bl.label}
+                </Badge>
+              ) : null}
               <SheetTitle asChild>
                 <textarea
                   defaultValue={card.title}
@@ -337,6 +373,19 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                   className={inlineField}
                 />
               </Row>
+
+              {card.parent ? (
+                <Row icon={CornerLeftUp} label="Card pai">
+                  <button
+                    onClick={() => onOpen?.(card.parent!.id)}
+                    className={inlineField + " flex items-center gap-1.5 text-left"}
+                  >
+                    <span className="truncate">
+                      {card.parent.code ? `${card.parent.code} · ` : ""}{card.parent.title}
+                    </span>
+                  </button>
+                </Row>
+              ) : null}
 
               <Row icon={Flag} label="Prioridade">
                 <Select
@@ -517,6 +566,33 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                 />
               </Row>
 
+              <Row icon={Ban} label="Bloqueio">
+                <div className="flex flex-col gap-2">
+                  <Select
+                    value={card.blocker ?? "none"}
+                    onValueChange={(v) => patch({ blocker: v === "none" ? null : v, ...(v === "none" ? { blockerReason: null } : {}) })}
+                  >
+                    <SelectTrigger size="sm" className="w-44 border-0 bg-transparent shadow-none hover:bg-accent"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="none">Sem bloqueio</SelectItem>
+                        <SelectItem value="IMPEDIMENTO">🚫 Impedimento</SelectItem>
+                        <SelectItem value="AVISO">⚠️ Aviso</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {card.blocker ? (
+                    <textarea
+                      defaultValue={card.blockerReason ?? ""}
+                      placeholder="Motivo do bloqueio…"
+                      rows={2}
+                      onBlur={(e) => { if ((e.target.value || null) !== card.blockerReason) patch({ blockerReason: e.target.value || null }); }}
+                      className="w-full resize-y rounded-md bg-muted/40 p-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                    />
+                  ) : null}
+                </div>
+              </Row>
+
               <Row icon={Clock} label="Criado em">
                 <div className="px-2 py-2 text-sm text-muted-foreground">{fmtDateTime(card.createdAt)}</div>
               </Row>
@@ -620,6 +696,70 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                   </div>
                 </div>
               )}
+            </div>
+
+            <Separator />
+
+            <div className="flex flex-col gap-2 px-8 py-5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <ListTree className="size-4" /> Subtarefas
+                  {card.children.length > 0 ? (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {card.children.filter((k) => /(done|conclu)/i.test(k.column.name)).length}/{card.children.length}
+                    </span>
+                  ) : null}
+                </span>
+                <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => setAddingSub((v) => !v)}>
+                  <Plus className="size-3.5" /> Adicionar
+                </Button>
+              </div>
+
+              {card.children.map((k) => {
+                const kty = k.type ? CARD_TYPE[k.type] : null;
+                return (
+                  <button
+                    key={k.id}
+                    onClick={() => onOpen?.(k.id)}
+                    className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-left text-sm hover:border-foreground/20"
+                  >
+                    {kty ? (
+                      <Badge variant="secondary" className="border-transparent font-medium" style={{ background: kty.bg, color: kty.text }}>
+                        {kty.label}
+                      </Badge>
+                    ) : null}
+                    <span className="min-w-0 flex-1 truncate">
+                      {k.code ? <span className="text-muted-foreground">{k.code} · </span> : null}{k.title}
+                    </span>
+                    <Badge variant="secondary" className="border-transparent" style={{ background: columnSwatch(k.column.name).bg, color: columnSwatch(k.column.name).text }}>
+                      {k.column.name}
+                    </Badge>
+                  </button>
+                );
+              })}
+
+              {addingSub ? (
+                <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-2">
+                  <div className="flex gap-1">
+                    <Button variant={subType === "SUBTASK" ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setSubType("SUBTASK")}>Subtask</Button>
+                    <Button variant={subType === "BUG" ? "default" : "ghost"} size="sm" className="h-7 text-xs" onClick={() => setSubType("BUG")}>Bug</Button>
+                  </div>
+                  <input
+                    autoFocus
+                    value={subTitle}
+                    onChange={(e) => setSubTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") createSubtask(); if (e.key === "Escape") setAddingSub(false); }}
+                    placeholder="Título da subtarefa…"
+                    className="w-full rounded-md bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => { setAddingSub(false); setSubTitle(""); }}>Cancelar</Button>
+                    <Button size="sm" onClick={createSubtask} disabled={!subTitle.trim()}>Criar</Button>
+                  </div>
+                </div>
+              ) : card.children.length === 0 ? (
+                <span className="text-sm text-muted-foreground">Nenhuma subtarefa.</span>
+              ) : null}
             </div>
 
             <Separator />

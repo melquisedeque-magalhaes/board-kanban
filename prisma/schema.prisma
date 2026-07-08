@@ -17,6 +17,12 @@ enum CardType {
   BUG
   FEATURE
   TAREFA
+  SUBTASK
+}
+
+enum Blocker {
+  IMPEDIMENTO
+  AVISO
 }
 
 model Board {
@@ -52,6 +58,11 @@ model Card {
   position    Float
   requestedById String?
   requestedBy   User?   @relation("CardRequester", fields: [requestedById], references: [id])
+  parentId      String?
+  parent        Card?     @relation("Subtasks", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Card[]    @relation("Subtasks")
+  blocker       Blocker?
+  blockerReason String?   @db.Text
   assignees   User[]    @relation("CardAssignees")
   labels      Label[]   @relation("CardLabels")
   comments    Comment[]
@@ -60,6 +71,7 @@ model Card {
   updatedAt   DateTime  @updatedAt
 
   @@index([archivedAt])
+  @@index([parentId])
 }
 
 model Attachment {

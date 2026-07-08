@@ -127,6 +127,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         onClose={() => setOpenCard(null)}
         onChanged={refetch}
         onArchive={archiveCard}
+        onOpen={setOpenCard}
       />
       <ArchivedDrawer
         open={archivedOpen}
