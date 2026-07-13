@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
-  Package, UserPlus, ExternalLink, Ban, TriangleAlert, ListTree, CornerLeftUp,
+  Package, UserPlus, ExternalLink, Ban, TriangleAlert, Wrench, ListTree, CornerLeftUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
@@ -46,7 +46,7 @@ interface CardDetail {
   details: string | null;
   priority: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
-  blocker: "IMPEDIMENTO" | "AVISO" | null;
+  blocker: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
   blockerReason: string | null;
   parent: { id: string; code: string | null; title: string } | null;
   children: { id: string; code: string | null; title: string; type: string | null; column: { name: string } }[];
@@ -350,7 +350,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                   className="w-fit gap-1 border-transparent font-medium"
                   style={{ background: bl.bg, color: bl.text }}
                 >
-                  {card.blocker === "IMPEDIMENTO" ? <Ban className="size-3" /> : <TriangleAlert className="size-3" />}
+                  {card.blocker === "IMPEDIMENTO" ? <Ban className="size-3" /> : card.blocker === "AJUSTES" ? <Wrench className="size-3" /> : <TriangleAlert className="size-3" />}
                   {bl.label}
                 </Badge>
               ) : null}
@@ -578,6 +578,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                         <SelectItem value="none">Sem bloqueio</SelectItem>
                         <SelectItem value="IMPEDIMENTO">🚫 Impedimento</SelectItem>
                         <SelectItem value="AVISO">⚠️ Aviso</SelectItem>
+                        <SelectItem value="AJUSTES">🔧 Ajustes a Fazer</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
