@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listCards, createCard } from "@/server/cards";
 import { requireUser } from "@/server/auth-guard";
+import { syncCurrentUser } from "@/server/users";
 import type { Priority, CardType } from "@prisma/client";
 
 export async function GET(req: Request) {
@@ -20,6 +21,12 @@ export async function POST(req: Request) {
   const unauth = await requireUser();
   if (unauth) return unauth;
   const body = await req.json();
+  // Quem cria o card vira responsável por padrão. Se o request já informar
+  // assignees (ex.: escolha explícita na UI), respeita e não sobrescreve.
+  if (!body.assignees?.length) {
+    const me = await syncCurrentUser();
+    if (me) body.assignees = [me.id];
+  }
   const card = await createCard(body);
   return NextResponse.json(card, { status: 201 });
 }
