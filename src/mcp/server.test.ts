@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
+const createCard = vi.fn().mockResolvedValue({ id: "new" });
 vi.mock("@/server/cards", () => ({
   listColumns: vi.fn().mockResolvedValue([{ id: "c1", name: "A Fazer" }]),
   listCards: vi.fn(),
   getCard: vi.fn(),
-  createCard: vi.fn(),
+  createCard: (...args: unknown[]) => createCard(...args),
   updateCard: vi.fn(),
   deleteCard: vi.fn(),
   archiveCard: vi.fn(),
@@ -40,5 +41,30 @@ describe("buildMcpServer", () => {
         "unassign_card", "update_card", "update_comment",
       ].sort(),
     );
+  });
+
+  type Tool = { handler: (a: Record<string, unknown>) => Promise<unknown> };
+  const createCallback = () => {
+    const s = buildMcpServer();
+    const tools = (s as unknown as { _registeredTools: Record<string, Tool> })._registeredTools;
+    return tools.create_card.handler;
+  };
+
+  it("create_card: createdBy vira responsável quando não há assignees", async () => {
+    createCard.mockClear();
+    await createCallback()({ columnName: "A Fazer", title: "novo", createdBy: "me" });
+    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assignees: ["me"] }));
+  });
+
+  it("create_card: assignees explícitos ganham do createdBy", async () => {
+    createCard.mockClear();
+    await createCallback()({ columnName: "A Fazer", title: "novo", createdBy: "me", assignees: ["outro"] });
+    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assignees: ["outro"] }));
+  });
+
+  it("create_card: sem createdBy nem assignees, não injeta responsável", async () => {
+    createCard.mockClear();
+    await createCallback()({ columnName: "A Fazer", title: "novo" });
+    expect(createCard).toHaveBeenCalledWith(expect.not.objectContaining({ assignees: expect.anything() }));
   });
 });

@@ -60,12 +60,20 @@ export function buildMcpServer() {
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),
+        createdBy: z.string().optional().describe(
+          "Quem cria — id, nome ou e-mail. Vira responsável se assignees não for informado",
+        ),
         parentId: z.string().optional().describe("id do card pai (torna este card uma subtarefa)"),
         blocker: blocker.optional().describe("Impedimento ou Aviso"),
         blockerReason: z.string().optional().describe("Motivo do impedimento/aviso"),
       },
     },
-    async (a) => json(await cards.createCard(a as cards.CreateCardInput)),
+    async ({ createdBy, ...rest }) => {
+      const input = rest as cards.CreateCardInput;
+      // Espelha a rota web: quem cria vira responsável por padrão, salvo escolha explícita.
+      if (!input.assignees?.length && createdBy) input.assignees = [createdBy];
+      return json(await cards.createCard(input));
+    },
   );
 
   s.registerTool(
