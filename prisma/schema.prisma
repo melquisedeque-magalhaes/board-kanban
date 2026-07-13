@@ -23,6 +23,7 @@ enum CardType {
 enum Blocker {
   IMPEDIMENTO
   AVISO
+  AJUSTES
 }
 
 model Board {
