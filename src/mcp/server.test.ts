@@ -50,21 +50,21 @@ describe("buildMcpServer", () => {
     return tools.create_card.handler;
   };
 
-  it("create_card: createdBy vira responsável quando não há assignees", async () => {
+  it("create_card: createdBy vira 'Solicitado por' quando não há requestedBy", async () => {
     createCard.mockClear();
     await createCallback()({ columnName: "A Fazer", title: "novo", createdBy: "me" });
-    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assignees: ["me"] }));
+    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ requestedBy: "me" }));
   });
 
-  it("create_card: assignees explícitos ganham do createdBy", async () => {
+  it("create_card: requestedBy explícito ganha do createdBy", async () => {
     createCard.mockClear();
-    await createCallback()({ columnName: "A Fazer", title: "novo", createdBy: "me", assignees: ["outro"] });
-    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assignees: ["outro"] }));
+    await createCallback()({ columnName: "A Fazer", title: "novo", createdBy: "me", requestedBy: "outro" });
+    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ requestedBy: "outro" }));
   });
 
-  it("create_card: sem createdBy nem assignees, não injeta responsável", async () => {
+  it("create_card: sem createdBy nem requestedBy, não injeta solicitante", async () => {
     createCard.mockClear();
     await createCallback()({ columnName: "A Fazer", title: "novo" });
-    expect(createCard).toHaveBeenCalledWith(expect.not.objectContaining({ assignees: expect.anything() }));
+    expect(createCard).toHaveBeenCalledWith(expect.not.objectContaining({ requestedBy: expect.anything() }));
   });
 });

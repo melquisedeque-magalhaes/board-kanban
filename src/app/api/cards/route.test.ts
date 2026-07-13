@@ -33,18 +33,18 @@ describe("POST /api/cards", () => {
     expect(await res.json()).toMatchObject({ id: "new" });
   });
 
-  it("atribui o criador como responsável quando nenhum assignee é informado", async () => {
+  it("define o criador como 'Solicitado por' quando requestedBy não é informado", async () => {
     await POST(new Request("http://x/api/cards", {
       method: "POST", body: JSON.stringify({ columnName: "A Fazer", title: "novo" }),
     }));
-    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assignees: ["me"] }));
+    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ requestedBy: "me" }));
   });
 
-  it("respeita assignees explícitos e não sobrescreve com o criador", async () => {
+  it("respeita requestedBy explícito e não sobrescreve com o criador", async () => {
     await POST(new Request("http://x/api/cards", {
-      method: "POST", body: JSON.stringify({ columnName: "A Fazer", title: "novo", assignees: ["outro"] }),
+      method: "POST", body: JSON.stringify({ columnName: "A Fazer", title: "novo", requestedBy: "outro" }),
     }));
     expect(syncCurrentUser).not.toHaveBeenCalled();
-    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ assignees: ["outro"] }));
+    expect(createCard).toHaveBeenCalledWith(expect.objectContaining({ requestedBy: "outro" }));
   });
 });
