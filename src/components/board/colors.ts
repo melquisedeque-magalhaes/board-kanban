@@ -41,6 +41,7 @@ export const CARD_TYPE: Record<string, Swatch & { label: string }> = {
 export const BLOCKER: Record<string, Swatch & { label: string; border: string }> = {
   IMPEDIMENTO: { label: "Impedimento", bg: "#ffe2dd", text: "#a3231a", border: "#e5484d" },
   AVISO: { label: "Aviso", bg: "#fdecc8", text: "#9a6c16", border: "#e8a72f" },
+  AJUSTES: { label: "Ajustes a Fazer", bg: "#d3e5ef", text: "#183347", border: "#4a90d9" },
 };
 
 // Cor do avatar derivada do nome (estável).

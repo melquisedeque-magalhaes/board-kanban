@@ -8,6 +8,7 @@ import { Column, type ColumnData } from "./Column";
 import { CardView } from "./Card";
 import { columnSwatch } from "./colors";
 import { applyView, isFiltering, type ViewState } from "./view";
+import { toast } from "sonner";
 
 function findCard(cols: ColumnData[], id: string) {
   for (const c of cols) { const card = c.cards.find((x) => x.id === id); if (card) return { col: c, card }; }
@@ -93,6 +94,17 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
     const overCol = columns.find((c) => c.id === over.id)
       ?? findCard(columns, String(over.id))?.col;
     if (!overCol) return;
+
+    // Card em bloqueio que trava não muda de coluna (espelha o servidor).
+    if (
+      overCol.id !== from.col.id &&
+      (from.card.blocker === "IMPEDIMENTO" || from.card.blocker === "AJUSTES")
+    ) {
+      toast.error(
+        `Card em ${from.card.blocker === "IMPEDIMENTO" ? "Impedimento" : "Ajustes a Fazer"} não pode mudar de coluna`,
+      );
+      return;
+    }
 
     const prev = columns;
 

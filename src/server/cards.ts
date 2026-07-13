@@ -1,8 +1,16 @@
 import { db } from "@/lib/db";
 import { positionBetween } from "@/lib/positions";
 import type {
-  CardFilter, CreateCardInput, UpdateCardInput,
+  CardFilter, CreateCardInput, UpdateCardInput, Blocker,
 } from "./types";
+
+// Bloqueios que impedem o card de mudar de coluna (reorder na mesma coluna é livre).
+const BLOCKING_MOVE: Blocker[] = ["IMPEDIMENTO", "AJUSTES"];
+const BLOCKER_LABEL: Record<Blocker, string> = {
+  IMPEDIMENTO: "Impedimento",
+  AVISO: "Aviso",
+  AJUSTES: "Ajustes a Fazer",
+};
 
 const cardInclude = {
   assignees: true,
@@ -260,13 +268,16 @@ export async function updateCard(id: string, input: UpdateCardInput) {
 }
 
 export async function moveCard(id: string, columnIdRef: string, position?: number, actor?: string) {
-  let columnId: string;
-  if (!columnIdRef) {
-    const card = await db.card.findUnique({ where: { id }, select: { columnId: true } });
-    if (!card) throw new Error(`Card não encontrado: ${id}`);
-    columnId = card.columnId;
-  } else {
-    columnId = await resolveColumnId({ columnId: columnIdRef, columnName: columnIdRef });
+  const current = await db.card.findUnique({
+    where: { id }, select: { columnId: true, blocker: true },
+  });
+  if (!current) throw new Error(`Card não encontrado: ${id}`);
+  const columnId = columnIdRef
+    ? await resolveColumnId({ columnId: columnIdRef, columnName: columnIdRef })
+    : current.columnId;
+  // Bloqueio que trava impede mudar DE coluna; reorder na mesma coluna passa.
+  if (columnId !== current.columnId && current.blocker && BLOCKING_MOVE.includes(current.blocker)) {
+    throw new Error(`Card em ${BLOCKER_LABEL[current.blocker]} não pode mudar de coluna`);
   }
   let pos = position;
   if (pos == null) {

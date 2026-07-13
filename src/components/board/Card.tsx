@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageCircle, MoreHorizontal, Link2, Archive, Ban, TriangleAlert, CornerLeftUp, CircleCheck } from "lucide-react";
+import { MessageCircle, MoreHorizontal, Link2, Archive, Ban, TriangleAlert, Wrench, CornerLeftUp, CircleCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,7 @@ export interface CardData {
   createdAt: string;
   priority?: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type?: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
-  blocker?: "IMPEDIMENTO" | "AVISO" | null;
+  blocker?: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
   parent?: { id: string; code: string | null; title: string } | null;
   children?: { id: string; column: { name: string } }[];
   version?: string | null;
@@ -125,7 +125,7 @@ export function CardView({
             className="gap-1 border-transparent font-medium"
             style={{ background: bl.bg, color: bl.text }}
           >
-            {card.blocker === "IMPEDIMENTO" ? <Ban className="size-3" /> : <TriangleAlert className="size-3" />}
+            {card.blocker === "IMPEDIMENTO" ? <Ban className="size-3" /> : card.blocker === "AJUSTES" ? <Wrench className="size-3" /> : <TriangleAlert className="size-3" />}
             {bl.label}
           </Badge>
         ) : null}

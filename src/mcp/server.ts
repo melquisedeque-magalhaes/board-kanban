@@ -4,7 +4,7 @@ import * as cards from "@/server/cards";
 
 const priority = z.enum(["CRITICA", "ALTA", "MEDIA", "BAIXA"]);
 const cardType = z.enum(["BUG", "FEATURE", "TAREFA", "SUBTASK"]);
-const blocker = z.enum(["IMPEDIMENTO", "AVISO"]);
+const blocker = z.enum(["IMPEDIMENTO", "AVISO", "AJUSTES"]);
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
@@ -64,7 +64,7 @@ export function buildMcpServer() {
           "Quem cria — id, nome ou e-mail. Vira responsável se assignees não for informado",
         ),
         parentId: z.string().optional().describe("id do card pai (torna este card uma subtarefa)"),
-        blocker: blocker.optional().describe("Impedimento ou Aviso"),
+        blocker: blocker.optional().describe("Impedimento, Aviso ou Ajustes a Fazer"),
         blockerReason: z.string().optional().describe("Motivo do impedimento/aviso"),
       },
     },
@@ -94,7 +94,7 @@ export function buildMcpServer() {
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),
         parentId: z.string().nullable().optional().describe("id do card pai (null desvincula)"),
-        blocker: blocker.nullable().optional().describe("Impedimento/Aviso (null limpa)"),
+        blocker: blocker.nullable().optional().describe("Impedimento/Aviso/Ajustes a Fazer (null limpa)"),
         blockerReason: z.string().nullable().optional().describe("Motivo (null limpa)"),
       },
     },

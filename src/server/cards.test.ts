@@ -35,12 +35,45 @@ describe("resolveColumnId", () => {
 
 describe("moveCard", () => {
   it("calcula position no fim quando omitida", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null });
     dbMock.column.findUnique.mockResolvedValue({ id: "c1" });
     dbMock.card.findMany.mockResolvedValue([{ position: 1000 }]);
     dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c1", position: 2000 });
     const r = await moveCard("card1", "c1", undefined);
     expect(dbMock.card.update).toHaveBeenCalled();
     expect(r.position).toBe(2000);
+  });
+
+  it("rejeita mudança de coluna com IMPEDIMENTO", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: "IMPEDIMENTO" });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c2" });
+    await expect(moveCard("card1", "c2")).rejects.toThrow(/não pode mudar de coluna/);
+    expect(dbMock.card.update).not.toHaveBeenCalled();
+  });
+
+  it("rejeita mudança de coluna com AJUSTES", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: "AJUSTES" });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c2" });
+    await expect(moveCard("card1", "c2")).rejects.toThrow(/não pode mudar de coluna/);
+    expect(dbMock.card.update).not.toHaveBeenCalled();
+  });
+
+  it("permite mudança de coluna com AVISO", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: "AVISO" });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c2" });
+    dbMock.card.findMany.mockResolvedValue([{ position: 1000 }]);
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c2", position: 2000 });
+    await expect(moveCard("card1", "c2")).resolves.toBeTruthy();
+    expect(dbMock.card.update).toHaveBeenCalled();
+  });
+
+  it("permite reorder na mesma coluna mesmo com IMPEDIMENTO", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: "IMPEDIMENTO" });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c1" });
+    dbMock.card.findMany.mockResolvedValue([{ position: 1000 }]);
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c1", position: 2000 });
+    await expect(moveCard("card1", "c1")).resolves.toBeTruthy();
+    expect(dbMock.card.update).toHaveBeenCalled();
   });
 });
 
