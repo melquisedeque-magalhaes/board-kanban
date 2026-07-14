@@ -21,11 +21,11 @@ export async function POST(req: Request) {
   const unauth = await requireUser();
   if (unauth) return unauth;
   const body = await req.json();
-  // Quem cria o card vira responsável por padrão. Se o request já informar
-  // assignees (ex.: escolha explícita na UI), respeita e não sobrescreve.
-  if (!body.assignees?.length) {
+  // Quem cria o card vira "Solicitado por" por padrão. Se o request já informar
+  // requestedBy (escolha explícita na UI), respeita e não sobrescreve.
+  if (!body.requestedBy) {
     const me = await syncCurrentUser();
-    if (me) body.assignees = [me.id];
+    if (me) body.requestedBy = me.id;
   }
   const card = await createCard(body);
   return NextResponse.json(card, { status: 201 });
