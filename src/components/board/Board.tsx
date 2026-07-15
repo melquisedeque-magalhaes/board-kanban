@@ -7,7 +7,7 @@ import {
 import { Column, type ColumnData } from "./Column";
 import { CardView } from "./Card";
 import { columnSwatch } from "./colors";
-import { applyView, isFiltering, type ViewState } from "./view";
+import { applyView, canReorder, type ViewState } from "./view";
 import { toast } from "sonner";
 
 function findCard(cols: ColumnData[], id: string) {
@@ -26,7 +26,7 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
   onDraggingChange?: (dragging: boolean) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const filtering = isFiltering(view);
+  const dragDisabled = !canReorder(view);
   const display = useMemo(() => applyView(columns, view), [columns, view]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = activeId ? findCard(columns, activeId) : null;
@@ -167,7 +167,7 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
           className="overflow-x-auto px-10 pb-6 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex w-max items-start gap-3.5">
-            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={filtering} />)}
+            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={dragDisabled} />)}
           </div>
         </div>
 
