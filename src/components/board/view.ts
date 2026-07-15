@@ -49,9 +49,19 @@ export function applyView(columns: ColumnData[], v: ViewState): ColumnData[] {
   });
 }
 
-// Drag manual só faz sentido sem filtro/ordenação ativos.
+// Indica se há qualquer controle de view ativo (busca, faceta ou ordenação).
+// Usado para hints de UI — NÃO para travar o drag (ver canReorder).
 export function isFiltering(v: ViewState): boolean {
   return !!(v.query.trim() || v.priority || v.type || v.assignee || v.sort !== "manual");
+}
+
+// O drag reordena/move dentro de `display` (a view já filtrada) e persiste a
+// nova `position`. Filtros de faceta e busca NÃO invalidam isso — mover cards
+// entre colunas e reordenar dentro da faixa de prioridade continua valendo.
+// Só travamos quando a ordenação IGNORA `position` (title/created): aí um
+// reorder manual não gruda (o applyView re-ordena) e o drag confundiria.
+export function canReorder(v: ViewState): boolean {
+  return v.sort === "manual" || v.sort === "priority";
 }
 
 export function activeFilterCount(v: ViewState): number {

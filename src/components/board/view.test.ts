@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyView, isFiltering, EMPTY_VIEW } from "./view";
+import { applyView, isFiltering, canReorder, EMPTY_VIEW } from "./view";
 import type { ColumnData } from "./Column";
 
 const card = (over: Partial<ColumnData["cards"][number]>) => ({
@@ -33,6 +33,21 @@ describe("applyView", () => {
     expect(isFiltering({ ...EMPTY_VIEW, query: "x" })).toBe(true);
     expect(isFiltering({ ...EMPTY_VIEW, sort: "title" })).toBe(true);
     expect(isFiltering({ ...EMPTY_VIEW, sort: "priority" })).toBe(true);
+  });
+
+  it("canReorder libera drag com filtros/busca ativos e só trava sort que ignora position", () => {
+    // default (manual) → pode arrastar
+    expect(canReorder(EMPTY_VIEW)).toBe(true);
+    // filtros de faceta e busca NÃO travam o drag (era o bug)
+    expect(canReorder({ ...EMPTY_VIEW, query: "x" })).toBe(true);
+    expect(canReorder({ ...EMPTY_VIEW, priority: "ALTA" })).toBe(true);
+    expect(canReorder({ ...EMPTY_VIEW, type: "BUG" })).toBe(true);
+    expect(canReorder({ ...EMPTY_VIEW, assignee: "u1" })).toBe(true);
+    // sort por prioridade respeita position (desempate) → drag continua válido
+    expect(canReorder({ ...EMPTY_VIEW, sort: "priority" })).toBe(true);
+    // title/created ignoram position → reorder não gruda, drag travado
+    expect(canReorder({ ...EMPTY_VIEW, sort: "title" })).toBe(false);
+    expect(canReorder({ ...EMPTY_VIEW, sort: "created" })).toBe(false);
   });
 });
 
