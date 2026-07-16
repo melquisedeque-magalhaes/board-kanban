@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
+import NextLink from "next/link";
 import {
   Users, Table, Columns3, Funnel, ArrowUpDown, Zap, Search,
-  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon, Archive, UserPen, ArrowUp, ArrowDown,
+  SlidersHorizontal, ChevronDown, X, Check, Link as LinkIcon, Archive, UserPen, ArrowUp, ArrowDown, BarChart3,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ProfileDialog } from "./ProfileDialog";
@@ -101,6 +102,9 @@ export function Chrome({ view, setView, users, online, onNew, onOpenArchived }: 
             </PopoverContent>
           </Popover>
 
+          <Button asChild variant="outline" size="sm">
+            <NextLink href="/relatorios"><BarChart3 data-icon="inline-start" /> Relatórios</NextLink>
+          </Button>
           <ThemeToggle />
           <UserButton>
             <UserButton.MenuItems>
