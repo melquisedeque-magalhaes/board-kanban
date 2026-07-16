@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Board } from "./Board";
@@ -20,6 +20,14 @@ async function beatPresence(): Promise<UserLite[]> {
   const r = await fetch("/api/presence", { method: "POST" });
   if (!r.ok) return [];
   return (await r.json()).online ?? [];
+}
+
+// Assinatura barata do board (ts + contadores). Pollamos ISSO a cada 3s em vez
+// do board inteiro; só refetchamos /api/columns quando a versão muda.
+async function fetchBoardVersion(): Promise<string> {
+  const r = await fetch("/api/board/version");
+  if (!r.ok) throw new Error("version");
+  return (await r.json()).version as string;
 }
 
 export function BoardApp({ initialColumns, users, currentUser }: {
@@ -53,6 +61,23 @@ export function BoardApp({ initialColumns, users, currentUser }: {
     queryKey: ["columns"],
     queryFn: fetchColumns,
     initialData: initialColumns,
+    // Sem polling direto: o board pesado só é refetchado quando a versão muda.
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+  });
+
+  // Poll barato da versão; ao mudar, invalida o board (dispara 1 refetch pesado).
+  const prevVersion = useRef<string | undefined>(undefined);
+  useQuery({
+    queryKey: ["board-version"],
+    queryFn: async () => {
+      const v = await fetchBoardVersion();
+      if (prevVersion.current !== undefined && prevVersion.current !== v) {
+        qc.invalidateQueries({ queryKey: ["columns"] });
+      }
+      prevVersion.current = v;
+      return v;
+    },
     refetchInterval: busy ? false : 3_000,
     refetchOnWindowFocus: !busy,
   });
