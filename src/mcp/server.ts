@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as cards from "@/server/cards";
+import { getDeliveryReport } from "@/server/reports";
 
 const priority = z.enum(["CRITICA", "ALTA", "MEDIA", "BAIXA"]);
 const cardType = z.enum(["BUG", "FEATURE", "TAREFA", "SUBTASK"]);
@@ -230,6 +231,16 @@ export function buildMcpServer() {
     "list_labels",
     { description: "Lista labels", inputSchema: {} },
     async () => json(await cards.listLabels()),
+  );
+
+  s.registerTool(
+    "get_delivery_report",
+    {
+      description:
+        "Relatório de entregas do time: totais (entregues/WIP/vencidos/sem responsável), entregas por pessoa, distribuição por coluna, breakdown por tipo e prioridade, e lista de cards vencidos. 'Entregue' = card em coluna de conclusão (Done/Concluído); WIP = ativo fora de done/cancelado. Sem histórico de movimentação, o estado é o atual.",
+      inputSchema: {},
+    },
+    async () => json(await getDeliveryReport()),
   );
 
   return s;
