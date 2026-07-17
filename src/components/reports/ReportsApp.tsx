@@ -1,5 +1,6 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Loader2, AlertTriangle, UserX } from "lucide-react";
 import type { DeliveryReport } from "@/server/reports";
@@ -82,10 +83,28 @@ function BreakdownList({ title, rows, color, labels }: {
 }
 
 export function ReportsApp({ initial }: { initial: DeliveryReport }) {
+  const qc = useQueryClient();
+  // Relatório puxa todos os cards (query pesada) — não pollamos ele direto.
   const { data: r } = useQuery<DeliveryReport>({
     queryKey: ["reports"],
     queryFn: () => fetch("/api/reports").then((res) => res.json()),
     initialData: initial,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+  });
+
+  // Poll barato da versão do board; só refetcha o relatório quando algo muda.
+  const prevVersion = useRef<string | undefined>(undefined);
+  useQuery({
+    queryKey: ["board-version"],
+    queryFn: async () => {
+      const v = (await fetch("/api/board/version").then((res) => res.json())).version as string;
+      if (prevVersion.current !== undefined && prevVersion.current !== v) {
+        qc.invalidateQueries({ queryKey: ["reports"] });
+      }
+      prevVersion.current = v;
+      return v;
+    },
     refetchInterval: 15000,
     refetchOnWindowFocus: true,
   });
