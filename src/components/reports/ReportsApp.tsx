@@ -10,24 +10,27 @@ import { avatarColor, initials, columnSwatch, PRIORITY, CARD_TYPE } from "@/comp
 
 const TYPE_LABEL: Record<string, string> = { ...Object.fromEntries(Object.entries(CARD_TYPE).map(([k, v]) => [k, v.label])), SEM_TIPO: "Sem tipo" };
 const PRIO_LABEL: Record<string, string> = { ...Object.fromEntries(Object.entries(PRIORITY).map(([k, v]) => [k, v.label])), SEM_PRIORIDADE: "Sem prioridade" };
-const typeColor = (k: string) => CARD_TYPE[k]?.bg ?? "#e3e2e0";
-const prioColor = (k: string) => PRIORITY[k]?.bg ?? "#e3e2e0";
+// Dots saturados do relatório (mais fortes que os swatches pastel do board).
+const TYPE_DOT: Record<string, string> = { FEATURE: "#5b8def", BUG: "#e5715f", TAREFA: "#3aa675", SUBTASK: "#8d6ecf", SEM_TIPO: "#b8b6b1" };
+const PRIO_DOT: Record<string, string> = { CRITICA: "#e5484d", ALTA: "#e8926a", MEDIA: "#e0b13e", BAIXA: "#b8b6b1", SEM_PRIORIDADE: "#c7c6c3" };
+const typeColor = (k: string) => TYPE_DOT[k] ?? "#b8b6b1";
+const prioColor = (k: string) => PRIO_DOT[k] ?? "#b8b6b1";
 
 function StatCard({ icon, label, value, tone }: {
   icon: React.ReactNode; label: string; value: number; tone?: "done" | "wip" | "danger" | "muted";
 }) {
-  const toneCls = {
-    done: "text-emerald-600 dark:text-emerald-400",
-    wip: "text-sky-600 dark:text-sky-400",
-    danger: "text-red-600 dark:text-red-400",
-    muted: "text-muted-foreground",
+  const t = {
+    done: { box: "bg-emerald-500/10", icon: "text-emerald-600 dark:text-emerald-400", num: "text-emerald-700 dark:text-emerald-400" },
+    wip: { box: "bg-sky-500/10", icon: "text-sky-600 dark:text-sky-400", num: "text-sky-700 dark:text-sky-400" },
+    danger: { box: "bg-red-500/10", icon: "text-red-600 dark:text-red-400", num: "text-red-700 dark:text-red-400" },
+    muted: { box: "bg-muted", icon: "text-muted-foreground", num: "text-foreground" },
   }[tone ?? "muted"];
   return (
     <Card>
       <CardContent className="flex items-center gap-3 py-4">
-        <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted ${toneCls}`}>{icon}</div>
+        <div className={`flex size-11 shrink-0 items-center justify-center rounded-[10px] ${t.box} ${t.icon}`}>{icon}</div>
         <div className="flex flex-col">
-          <span className="text-2xl font-bold tabular-nums leading-none">{value}</span>
+          <span className={`text-2xl font-bold tabular-nums leading-none ${t.num}`}>{value}</span>
           <span className="text-xs text-muted-foreground">{label}</span>
         </div>
       </CardContent>
@@ -40,8 +43,8 @@ function StackedBar({ delivered, wip, max }: { delivered: number; wip: number; m
   const pct = (n: number) => (max > 0 ? (n / max) * 100 : 0);
   return (
     <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-      <div className="h-full bg-emerald-500" style={{ width: `${pct(delivered)}%` }} title={`${delivered} entregue(s)`} />
-      <div className="h-full bg-amber-400" style={{ width: `${pct(wip)}%` }} title={`${wip} em andamento`} />
+      <div className="h-full" style={{ width: `${pct(delivered)}%`, background: "#3aa675" }} title={`${delivered} entregue(s)`} />
+      <div className="h-full" style={{ width: `${pct(wip)}%`, background: "#e8a72f" }} title={`${wip} em andamento`} />
     </div>
   );
 }
