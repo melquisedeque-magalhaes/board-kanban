@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Copy, Check } from "lucide-react";
 import type { ColumnData } from "./Column";
 import type { UserLite } from "./Chrome";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,30 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
   const [requestedBy, setRequestedBy] = useState(draft.requestedBy ?? "");
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [reservedCode, setReservedCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Reserva a chave uma vez, ao abrir o dialog. Cancelar deixa furo no
+  // sequencial (aceito — ver spec TI-129).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/cards/reserve-code", { method: "POST" });
+        if (alive && r.ok) setReservedCode((await r.json()).code);
+      } catch { /* offline — cria sem prévia, backend gera no create */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  async function copyCode() {
+    if (!reservedCode) return;
+    try {
+      await navigator.clipboard.writeText(reservedCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard bloqueado */ }
+  }
 
   // Persiste o rascunho enquanto edita (não some ao fechar sem salvar).
   useEffect(() => {
@@ -62,6 +87,7 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
         columnId, title,
+        code: reservedCode || undefined,
         priority: priority || undefined,
         type: type || undefined,
         version: version.trim() || undefined,
@@ -82,6 +108,21 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
         </DialogHeader>
 
         <FieldGroup>
+          {reservedCode && (
+            <Field>
+              <FieldLabel>Chave</FieldLabel>
+              <div className="flex items-center gap-2">
+                <Input value={reservedCode} readOnly className="font-mono" />
+                <Button
+                  type="button" variant="outline" size="icon"
+                  onClick={copyCode} aria-label="Copiar chave"
+                >
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </Field>
+          )}
+
           <Field>
             <FieldLabel htmlFor="card-title">Título</FieldLabel>
             <Input
