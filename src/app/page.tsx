@@ -8,7 +8,7 @@ export default async function Home() {
   const me = await syncCurrentUser();
   const [columns, users] = await Promise.all([listColumns(), listUsers()]);
   return (
-    <main>
+    <main className="flex h-screen flex-col overflow-hidden">
       <BoardApp
         initialColumns={JSON.parse(JSON.stringify(columns))}
         users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
