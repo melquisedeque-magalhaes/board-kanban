@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Copy, Check } from "lucide-react";
 import type { ColumnData } from "./Column";
@@ -28,7 +28,7 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
   users: UserLite[];
   initialColumnId: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (cardId: string) => void;
 }) {
   const draft = readDraft();
   const [columnId, setColumnId] = useState(initialColumnId);
@@ -39,46 +39,27 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
   const [requestedBy, setRequestedBy] = useState(draft.requestedBy ?? "");
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [reservedCode, setReservedCode] = useState<string | null>(null);
+  const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  // Refs p/ o cleanup de unmount: precisa da última chave e de saber se criou.
-  const reservedRef = useRef<string | null>(null);
-  const createdRef = useRef(false);
 
-  // Reserva a chave uma vez, ao abrir o dialog.
+  // Prévia da próxima chave, só pra exibir. Read-only: abrir/fechar o dialog não
+  // consome nada. O número real é gerado no create (server). Pode divergir por 1
+  // se outro card for criado no meio — aceito (ver spec TI-129).
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const r = await fetch("/api/cards/reserve-code", { method: "POST" });
-        if (alive && r.ok) {
-          const { code } = await r.json();
-          setReservedCode(code);
-          reservedRef.current = code;
-        }
+        const r = await fetch("/api/cards/next-code");
+        if (alive && r.ok) setPreviewCode((await r.json()).code);
       } catch { /* offline — cria sem prévia, backend gera no create */ }
     })();
     return () => { alive = false; };
   }, []);
 
-  // Ao fechar sem criar, devolve a chave reservada (best-effort, keepalive
-  // p/ sobreviver ao unmount). O backend só decrementa se ela ainda for a última.
-  useEffect(() => {
-    return () => {
-      if (!createdRef.current && reservedRef.current) {
-        fetch("/api/cards/release-code", {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ code: reservedRef.current }),
-          keepalive: true,
-        }).catch(() => { /* best-effort */ });
-      }
-    };
-  }, []);
-
   async function copyCode() {
-    if (!reservedCode) return;
+    if (!previewCode) return;
     try {
-      await navigator.clipboard.writeText(reservedCode);
+      await navigator.clipboard.writeText(previewCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch { /* clipboard bloqueado */ }
@@ -107,7 +88,6 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
         columnId, title,
-        code: reservedCode || undefined,
         priority: priority || undefined,
         type: type || undefined,
         version: version.trim() || undefined,
@@ -116,9 +96,9 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
     });
     setSaving(false);
     if (!res.ok) { toast.error("Falha ao criar card"); return; }
+    const created = await res.json();
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage bloqueado */ }
-    createdRef.current = true; // criou → não libera a chave no unmount
-    onCreated(); onClose();
+    onCreated(created.id); onClose();
   }
 
   return (
@@ -129,11 +109,11 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
         </DialogHeader>
 
         <FieldGroup>
-          {reservedCode && (
+          {previewCode && (
             <Field>
-              <FieldLabel>Chave</FieldLabel>
+              <FieldLabel>Chave (prévia)</FieldLabel>
               <div className="flex items-center gap-2">
-                <Input value={reservedCode} readOnly className="font-mono" />
+                <Input value={previewCode} readOnly className="font-mono" />
                 <Button
                   type="button" variant="outline" size="icon"
                   onClick={copyCode} aria-label="Copiar chave"

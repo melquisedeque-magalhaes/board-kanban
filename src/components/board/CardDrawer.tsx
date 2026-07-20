@@ -370,12 +370,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
 
             <div className="flex flex-col gap-1 px-8 py-2">
               <Row icon={Hash} label="Chave">
-                <input
-                  defaultValue={card.code ?? ""}
-                  placeholder="Ex.: TI-42"
-                  onBlur={(e) => { if ((e.target.value || null) !== card.code) patch({ code: e.target.value || null }); }}
-                  className={inlineField}
-                />
+                <span className="block px-2 py-1.5 font-mono text-sm text-muted-foreground">{card.code ?? "—"}</span>
               </Row>
 
               {card.parent ? (
