@@ -70,6 +70,19 @@ export async function nextCardCode(): Promise<string> {
   return `${CARD_CODE_PREFIX}${value}`;
 }
 
+// Devolve uma chave reservada mas não usada (cancelar a criação): decrementa o
+// contador SÓ se a chave ainda for a última emitida (compare-and-decrement
+// atômico — o WHERE value=n num único UPDATE evita corrida). Se outro card já
+// avançou o contador, não faz nada e o furo permanece (aceito — ver spec TI-129).
+export async function releaseCardCode(code: string): Promise<void> {
+  const n = Number(code.slice(CARD_CODE_PREFIX.length));
+  if (!Number.isInteger(n)) return;
+  await db.counter.updateMany({
+    where: { name: "card", value: n },
+    data: { value: { decrement: 1 } },
+  });
+}
+
 export async function listColumns() {
   return db.column.findMany({
     orderBy: { position: "asc" },

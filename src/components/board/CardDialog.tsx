@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Copy, Check } from "lucide-react";
 import type { ColumnData } from "./Column";
@@ -41,18 +41,38 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
   const [confirmClear, setConfirmClear] = useState(false);
   const [reservedCode, setReservedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Refs p/ o cleanup de unmount: precisa da última chave e de saber se criou.
+  const reservedRef = useRef<string | null>(null);
+  const createdRef = useRef(false);
 
-  // Reserva a chave uma vez, ao abrir o dialog. Cancelar deixa furo no
-  // sequencial (aceito — ver spec TI-129).
+  // Reserva a chave uma vez, ao abrir o dialog.
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const r = await fetch("/api/cards/reserve-code", { method: "POST" });
-        if (alive && r.ok) setReservedCode((await r.json()).code);
+        if (alive && r.ok) {
+          const { code } = await r.json();
+          setReservedCode(code);
+          reservedRef.current = code;
+        }
       } catch { /* offline — cria sem prévia, backend gera no create */ }
     })();
     return () => { alive = false; };
+  }, []);
+
+  // Ao fechar sem criar, devolve a chave reservada (best-effort, keepalive
+  // p/ sobreviver ao unmount). O backend só decrementa se ela ainda for a última.
+  useEffect(() => {
+    return () => {
+      if (!createdRef.current && reservedRef.current) {
+        fetch("/api/cards/release-code", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code: reservedRef.current }),
+          keepalive: true,
+        }).catch(() => { /* best-effort */ });
+      }
+    };
   }, []);
 
   async function copyCode() {
@@ -97,6 +117,7 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
     setSaving(false);
     if (!res.ok) { toast.error("Falha ao criar card"); return; }
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage bloqueado */ }
+    createdRef.current = true; // criou → não libera a chave no unmount
     onCreated(); onClose();
   }
 

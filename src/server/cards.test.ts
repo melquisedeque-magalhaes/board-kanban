@@ -7,13 +7,13 @@ const dbMock = vi.hoisted(() => ({
   label: { findMany: vi.fn() },
   comment: { create: vi.fn() },
   attachment: { updateMany: vi.fn() },
-  counter: { update: vi.fn() },
+  counter: { update: vi.fn(), updateMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
-  createCard, updateCard, getCard, nextCardCode,
+  createCard, updateCard, getCard, nextCardCode, releaseCardCode,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
@@ -217,5 +217,21 @@ describe("createCard documentation", () => {
         data: expect.objectContaining({ documentation: "- [doc](http://a)" }),
       }),
     );
+  });
+});
+
+describe("releaseCardCode", () => {
+  it("decrementa o contador só se a chave ainda for a última (compare-and-decrement)", async () => {
+    dbMock.counter.updateMany.mockResolvedValue({ count: 1 });
+    await releaseCardCode("TI-18");
+    expect(dbMock.counter.updateMany).toHaveBeenCalledWith({
+      where: { name: "card", value: 18 },
+      data: { value: { decrement: 1 } },
+    });
+  });
+
+  it("ignora chave sem sufixo numérico (não toca no contador)", async () => {
+    await releaseCardCode("TI-abc");
+    expect(dbMock.counter.updateMany).not.toHaveBeenCalled();
   });
 });

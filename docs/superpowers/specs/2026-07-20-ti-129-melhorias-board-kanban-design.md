@@ -50,8 +50,14 @@ existentes; cards que já tinham code não mudam.
 **Objetivo:** mostrar a chave do card já ao criar, com botão copiar, e que a chave mostrada
 seja a **final** (não muda depois).
 
-**Decisão:** reservar a chave de verdade antes de salvar. Cancelar o dialog consome a chave
-(furo no sequencial) — aceito.
+**Decisão:** reservar a chave de verdade antes de salvar. Cancelar **libera** a chave
+(compare-and-decrement: só devolve se ainda for a última emitida). Se outro card avançou
+o contador no meio, o furo permanece — aceito.
+
+**Ajuste pós-teste (release ao cancelar):**
+- `releaseCardCode(code)` em `cards.ts`: `db.counter.updateMany({ where:{ name:"card", value:n }, data:{ value:{ decrement:1 } } })` — só decrementa se o contador ainda estiver em `n` (atômico, sem corrida).
+- `POST /api/cards/release-code` (auth-gated) chama `releaseCardCode`.
+- `CardDialog`: no unmount, se não criou e há chave reservada, chama `release-code` com `keepalive`. `createdRef` marca criação bem-sucedida (não libera nesse caso).
 
 **Design:**
 - Novo model `Counter { id, name String @unique, value Int }` — linha única `name:"card"`.
