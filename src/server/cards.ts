@@ -224,6 +224,7 @@ export async function createCard(input: CreateCardInput) {
   return db.card.create({
     data: {
       columnId, title: input.title, details: input.details ?? input.description,
+      documentation: input.documentation,
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code, position,
@@ -254,6 +255,7 @@ export async function updateCard(id: string, input: UpdateCardInput) {
     where: { id },
     data: {
       title: input.title, details: input.details !== undefined ? input.details : input.description,
+      documentation: input.documentation,
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code: input.code, dueDate, assignees, labels,

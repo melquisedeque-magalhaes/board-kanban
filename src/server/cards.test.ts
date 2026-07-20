@@ -202,3 +202,20 @@ describe("nextCardCode", () => {
     expect(await nextCardCode()).toBe("TI-2");
   });
 });
+
+describe("createCard documentation", () => {
+  it("persiste o campo documentation", async () => {
+    dbMock.column.findFirst.mockResolvedValue({ id: "col1" });
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.user.findMany.mockResolvedValue([]);
+    dbMock.label.findMany.mockResolvedValue([]);
+    dbMock.counter.update.mockResolvedValue({ value: 5 });
+    dbMock.card.create.mockResolvedValue({ id: "new" });
+    await createCard({ columnName: "A Fazer", title: "x", documentation: "- [doc](http://a)" });
+    expect(dbMock.card.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ documentation: "- [doc](http://a)" }),
+      }),
+    );
+  });
+});
