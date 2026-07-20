@@ -58,18 +58,16 @@ async function resolveLabelIds(refs: string[]): Promise<string[]> {
 
 const CARD_CODE_PREFIX = "TI-";
 
-// Próxima Chave sequencial global (TI-1, TI-2, …). Considera cards arquivados
-// para nunca reusar número. Baseado no maior sufixo numérico existente.
+// Próxima Chave sequencial global (TI-1, TI-2, …) via contador atômico:
+// um único UPDATE ... increment garante que dois creates simultâneos nunca
+// recebam o mesmo número. O contador é seedado pela migration no maior N atual.
 export async function nextCardCode(): Promise<string> {
-  const rows = await db.card.findMany({
-    where: { code: { startsWith: CARD_CODE_PREFIX } },
-    select: { code: true },
+  const { value } = await db.counter.update({
+    where: { name: "card" },
+    data: { value: { increment: 1 } },
+    select: { value: true },
   });
-  const max = rows.reduce((m, { code }) => {
-    const n = Number(code!.slice(CARD_CODE_PREFIX.length));
-    return Number.isInteger(n) && n > m ? n : m;
-  }, 0);
-  return `${CARD_CODE_PREFIX}${max + 1}`;
+  return `${CARD_CODE_PREFIX}${value}`;
 }
 
 export async function listColumns() {

@@ -7,12 +7,13 @@ const dbMock = vi.hoisted(() => ({
   label: { findMany: vi.fn() },
   comment: { create: vi.fn() },
   attachment: { updateMany: vi.fn() },
+  counter: { update: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
-  createCard, updateCard, getCard,
+  createCard, updateCard, getCard, nextCardCode,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
@@ -139,6 +140,7 @@ describe("createCard subtask/blocker", () => {
     dbMock.user.findMany.mockResolvedValue([]);
     dbMock.label.findMany.mockResolvedValue([]);
     dbMock.card.create.mockResolvedValue({ id: "new1" });
+    dbMock.counter.update.mockResolvedValue({ value: 1 });
     await createCard({
       columnName: "A Fazer", title: "Corrigir X", type: "BUG",
       parentId: "parent1", blocker: "IMPEDIMENTO", blockerReason: "esperando API",
@@ -181,5 +183,22 @@ describe("getCard", () => {
         children: expect.objectContaining({ where: { archivedAt: null } }),
       }),
     }));
+  });
+});
+
+describe("nextCardCode", () => {
+  it("incrementa o contador atômico e formata TI-N", async () => {
+    dbMock.counter.update.mockResolvedValue({ value: 130 });
+    expect(await nextCardCode()).toBe("TI-130");
+    expect(dbMock.counter.update).toHaveBeenCalledWith({
+      where: { name: "card" },
+      data: { value: { increment: 1 } },
+      select: { value: true },
+    });
+  });
+  it("chamadas sequenciais devolvem valores distintos do contador", async () => {
+    dbMock.counter.update.mockResolvedValueOnce({ value: 1 }).mockResolvedValueOnce({ value: 2 });
+    expect(await nextCardCode()).toBe("TI-1");
+    expect(await nextCardCode()).toBe("TI-2");
   });
 });
