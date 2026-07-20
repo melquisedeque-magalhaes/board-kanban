@@ -56,7 +56,7 @@ export function Chrome({ view, setView, users, online, onNew, onOpenArchived }: 
   }
 
   return (
-    <header className="flex flex-col">
+    <header className="sticky top-0 z-40 flex flex-col bg-background">
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-2.5">
         <div className="flex items-center gap-2 text-[13px]">
