@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
-  Package, UserPlus, ExternalLink, Ban, TriangleAlert, Wrench, ListTree, CornerLeftUp,
+  Package, UserPlus, ExternalLink, Ban, TriangleAlert, Wrench, ListTree, CornerLeftUp, BookText,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
@@ -44,6 +44,7 @@ interface CardDetail {
   code: string | null;
   title: string;
   details: string | null;
+  documentation: string | null;
   priority: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
   blocker: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
@@ -129,6 +130,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
   const [comment, setComment] = useState("");
   const [pendingAtts, setPendingAtts] = useState<Attachment[]>([]);
   const [editingDetails, setEditingDetails] = useState(false);
+  const [editingDocs, setEditingDocs] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -321,6 +323,8 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
   const due = card?.dueDate ? card.dueDate.slice(0, 10) : "";
   const desc = card?.details ?? "";
   const hasDesc = desc.trim().length > 0;
+  const docs = card?.documentation ?? "";
+  const hasDocs = docs.trim().length > 0;
   const bl = card?.blocker ? BLOCKER[card.blocker] : null;
 
   return (
@@ -696,6 +700,43 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                     ))}
                   </div>
                 </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Documentação (links/refs em markdown) */}
+            <div className="flex flex-col gap-2 px-8 py-5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <BookText className="size-4" /> Documentação
+                </span>
+                {hasDocs ? (
+                  <Button
+                    variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs"
+                    onClick={() => setEditingDocs((v) => !v)}
+                  >
+                    {editingDocs ? <><Eye className="size-3.5" /> Visualizar</> : <><Pencil className="size-3.5" /> Editar</>}
+                  </Button>
+                ) : null}
+              </div>
+
+              {editingDocs || !hasDocs ? (
+                <textarea
+                  defaultValue={docs}
+                  placeholder="Links e documentação em markdown (um por linha)…"
+                  rows={4}
+                  onBlur={(e) => { if ((e.target.value || null) !== card.documentation) patch({ documentation: e.target.value || null }); }}
+                  className="min-h-24 w-full resize-y rounded-lg bg-muted/40 p-3 font-mono text-sm leading-relaxed outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring [field-sizing:content]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingDocs(true)}
+                  className="cursor-text rounded-md p-3 text-left hover:bg-accent/50"
+                >
+                  <MarkdownView source={docs} />
+                </button>
               )}
             </div>
 

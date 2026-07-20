@@ -30,7 +30,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       }
     }
   }
-  const hasFields = ["title", "description", "details", "priority", "type", "version", "branchUrl", "requestedBy", "code", "dueDate", "assignees", "labels", "parentId", "blocker", "blockerReason"]
+  const hasFields = ["title", "description", "details", "documentation", "priority", "type", "version", "branchUrl", "requestedBy", "code", "dueDate", "assignees", "labels", "parentId", "blocker", "blockerReason"]
     .some((k) => k in body);
   if (hasFields) await updateCard(id, body);
   return NextResponse.json(await getCard(id));
