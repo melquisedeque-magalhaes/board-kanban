@@ -7,12 +7,13 @@ const dbMock = vi.hoisted(() => ({
   label: { findMany: vi.fn() },
   comment: { create: vi.fn() },
   attachment: { updateMany: vi.fn() },
+  counter: { update: vi.fn(), findUnique: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
-  createCard, updateCard, getCard,
+  createCard, updateCard, getCard, nextCardCode, peekCardCode,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
@@ -139,6 +140,7 @@ describe("createCard subtask/blocker", () => {
     dbMock.user.findMany.mockResolvedValue([]);
     dbMock.label.findMany.mockResolvedValue([]);
     dbMock.card.create.mockResolvedValue({ id: "new1" });
+    dbMock.counter.update.mockResolvedValue({ value: 1 });
     await createCard({
       columnName: "A Fazer", title: "Corrigir X", type: "BUG",
       parentId: "parent1", blocker: "IMPEDIMENTO", blockerReason: "esperando API",
@@ -181,5 +183,52 @@ describe("getCard", () => {
         children: expect.objectContaining({ where: { archivedAt: null } }),
       }),
     }));
+  });
+});
+
+describe("nextCardCode", () => {
+  it("incrementa o contador atômico e formata TI-N", async () => {
+    dbMock.counter.update.mockResolvedValue({ value: 130 });
+    expect(await nextCardCode()).toBe("TI-130");
+    expect(dbMock.counter.update).toHaveBeenCalledWith({
+      where: { name: "card" },
+      data: { value: { increment: 1 } },
+      select: { value: true },
+    });
+  });
+  it("chamadas sequenciais devolvem valores distintos do contador", async () => {
+    dbMock.counter.update.mockResolvedValueOnce({ value: 1 }).mockResolvedValueOnce({ value: 2 });
+    expect(await nextCardCode()).toBe("TI-1");
+    expect(await nextCardCode()).toBe("TI-2");
+  });
+});
+
+describe("createCard documentation", () => {
+  it("persiste o campo documentation", async () => {
+    dbMock.column.findFirst.mockResolvedValue({ id: "col1" });
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.user.findMany.mockResolvedValue([]);
+    dbMock.label.findMany.mockResolvedValue([]);
+    dbMock.counter.update.mockResolvedValue({ value: 5 });
+    dbMock.card.create.mockResolvedValue({ id: "new" });
+    await createCard({ columnName: "A Fazer", title: "x", documentation: "- [doc](http://a)" });
+    expect(dbMock.card.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ documentation: "- [doc](http://a)" }),
+      }),
+    );
+  });
+});
+
+describe("peekCardCode", () => {
+  it("devolve a próxima chave sem consumir (value+1)", async () => {
+    dbMock.counter.findUnique.mockResolvedValue({ value: 12 });
+    expect(await peekCardCode()).toBe("TI-13");
+    expect(dbMock.counter.update).not.toHaveBeenCalled();
+  });
+
+  it("começa em TI-1 se o contador ainda não existir", async () => {
+    dbMock.counter.findUnique.mockResolvedValue(null);
+    expect(await peekCardCode()).toBe("TI-1");
   });
 });

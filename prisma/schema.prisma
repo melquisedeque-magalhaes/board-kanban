@@ -50,6 +50,7 @@ model Card {
   code        String?
   title       String
   details     String?   @db.Text
+  documentation String?   @db.Text
   priority    Priority?
   type        CardType?
   version     String?
@@ -119,4 +120,10 @@ model Comment {
   body        String       @db.Text
   attachments Attachment[]
   createdAt   DateTime     @default(now())
+}
+
+model Counter {
+  id    String @id @default(cuid())
+  name  String @unique
+  value Int
 }

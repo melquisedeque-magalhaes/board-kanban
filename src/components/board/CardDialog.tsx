@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Copy, Check } from "lucide-react";
 import type { ColumnData } from "./Column";
 import type { UserLite } from "./Chrome";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
   users: UserLite[];
   initialColumnId: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (cardId: string) => void;
 }) {
   const draft = readDraft();
   const [columnId, setColumnId] = useState(initialColumnId);
@@ -38,6 +39,31 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
   const [requestedBy, setRequestedBy] = useState(draft.requestedBy ?? "");
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [previewCode, setPreviewCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Prévia da próxima chave, só pra exibir. Read-only: abrir/fechar o dialog não
+  // consome nada. O número real é gerado no create (server). Pode divergir por 1
+  // se outro card for criado no meio — aceito (ver spec TI-129).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/cards/next-code");
+        if (alive && r.ok) setPreviewCode((await r.json()).code);
+      } catch { /* offline — cria sem prévia, backend gera no create */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  async function copyCode() {
+    if (!previewCode) return;
+    try {
+      await navigator.clipboard.writeText(previewCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard bloqueado */ }
+  }
 
   // Persiste o rascunho enquanto edita (não some ao fechar sem salvar).
   useEffect(() => {
@@ -70,8 +96,9 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
     });
     setSaving(false);
     if (!res.ok) { toast.error("Falha ao criar card"); return; }
+    const created = await res.json();
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage bloqueado */ }
-    onCreated(); onClose();
+    onCreated(created.id); onClose();
   }
 
   return (
@@ -82,6 +109,21 @@ export function CardDialog({ columns, users, initialColumnId, onClose, onCreated
         </DialogHeader>
 
         <FieldGroup>
+          {previewCode && (
+            <Field>
+              <FieldLabel>Chave (prévia)</FieldLabel>
+              <div className="flex items-center gap-2">
+                <Input value={previewCode} readOnly className="font-mono" />
+                <Button
+                  type="button" variant="outline" size="icon"
+                  onClick={copyCode} aria-label="Copiar chave"
+                >
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </Field>
+          )}
+
           <Field>
             <FieldLabel htmlFor="card-title">Título</FieldLabel>
             <Input

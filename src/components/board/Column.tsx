@@ -25,8 +25,8 @@ export function Column({
   const swatch = columnSwatch(column.name);
 
   return (
-    <div className="flex w-[284px] shrink-0 flex-col gap-2.5 rounded-xl bg-muted/60 p-2">
-      <div className="flex items-center gap-2 px-0.5">
+    <div className="flex w-[284px] shrink-0 flex-col gap-2.5 rounded-xl bg-muted p-2">
+      <div className="sticky top-0 z-20 -mx-2 -mt-2 flex items-center gap-2 rounded-t-xl bg-muted px-2.5 pb-1.5 pt-2.5">
         <Badge
           className="border-transparent font-semibold"
           style={{ background: swatch.bg, color: swatch.text }}

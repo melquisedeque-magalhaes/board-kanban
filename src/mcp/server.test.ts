@@ -29,14 +29,14 @@ describe("buildMcpServer", () => {
     expect(s).toBeTruthy();
   });
 
-  it("registra exatamente as 17 tools esperadas", () => {
+  it("registra exatamente as 18 tools esperadas", () => {
     const s = buildMcpServer();
     const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
       ._registeredTools;
     expect(Object.keys(registered).sort()).toEqual(
       [
         "add_attachment", "add_comment", "archive_card", "assign_card", "create_card",
-        "get_card", "list_archived_cards", "list_attachments", "list_cards",
+        "get_card", "get_delivery_report", "list_archived_cards", "list_attachments", "list_cards",
         "list_columns", "list_labels", "list_users", "move_card", "unarchive_card",
         "unassign_card", "update_card", "update_comment",
       ].sort(),

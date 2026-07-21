@@ -58,18 +58,28 @@ async function resolveLabelIds(refs: string[]): Promise<string[]> {
 
 const CARD_CODE_PREFIX = "TI-";
 
-// Próxima Chave sequencial global (TI-1, TI-2, …). Considera cards arquivados
-// para nunca reusar número. Baseado no maior sufixo numérico existente.
+// Próxima Chave sequencial global (TI-1, TI-2, …) via contador atômico:
+// um único UPDATE ... increment garante que dois creates simultâneos nunca
+// recebam o mesmo número. O contador é seedado pela migration no maior N atual.
 export async function nextCardCode(): Promise<string> {
-  const rows = await db.card.findMany({
-    where: { code: { startsWith: CARD_CODE_PREFIX } },
-    select: { code: true },
+  const { value } = await db.counter.update({
+    where: { name: "card" },
+    data: { value: { increment: 1 } },
+    select: { value: true },
   });
-  const max = rows.reduce((m, { code }) => {
-    const n = Number(code!.slice(CARD_CODE_PREFIX.length));
-    return Number.isInteger(n) && n > m ? n : m;
-  }, 0);
-  return `${CARD_CODE_PREFIX}${max + 1}`;
+  return `${CARD_CODE_PREFIX}${value}`;
+}
+
+// Prévia da próxima chave SEM consumir (read-only). O número real é gerado no
+// create (nextCardCode, atômico); esta função só mostra a chave provável no
+// dialog. Pode divergir por 1 se outro card for criado no meio — aceito, e sem
+// os furos/corrida que a reserva-ao-abrir causava (ver spec TI-129).
+export async function peekCardCode(): Promise<string> {
+  const c = await db.counter.findUnique({
+    where: { name: "card" },
+    select: { value: true },
+  });
+  return `${CARD_CODE_PREFIX}${(c?.value ?? 0) + 1}`;
 }
 
 export async function listColumns() {
@@ -226,6 +236,7 @@ export async function createCard(input: CreateCardInput) {
   return db.card.create({
     data: {
       columnId, title: input.title, details: input.details ?? input.description,
+      documentation: input.documentation,
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code, position,
@@ -256,6 +267,7 @@ export async function updateCard(id: string, input: UpdateCardInput) {
     where: { id },
     data: {
       title: input.title, details: input.details !== undefined ? input.details : input.description,
+      documentation: input.documentation,
       priority: input.priority, type: input.type, version: input.version,
       branchUrl: input.branchUrl, requestedById,
       code: input.code, dueDate, assignees, labels,

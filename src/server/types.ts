@@ -20,6 +20,7 @@ export interface CreateCardInput {
   branchUrl?: string;
   requestedBy?: string; // id, nome ou e-mail
   code?: string;
+  documentation?: string;
   assignees?: string[]; // nomes ou ids
   labels?: string[];    // nomes ou ids
   parentId?: string;
@@ -36,6 +37,7 @@ export interface UpdateCardInput {
   branchUrl?: string | null;
   requestedBy?: string | null; // id, nome ou e-mail
   code?: string | null;
+  documentation?: string | null;
   dueDate?: string | Date | null;
   assignees?: string[];
   labels?: string[];

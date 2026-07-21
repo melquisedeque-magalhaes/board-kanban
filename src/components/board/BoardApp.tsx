@@ -141,7 +141,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
           users={users}
           initialColumnId={createCol}
           onClose={() => setCreateCol(null)}
-          onCreated={refetch}
+          onCreated={(id) => { setOpenCard(id); refetch(); }}
         />
       )}
       <CardDrawer

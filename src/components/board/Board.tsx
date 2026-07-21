@@ -159,12 +159,14 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
       onDragEnd={onDragEnd}
       onDragCancel={endDrag}
     >
-      <div className="relative">
-        {/* Colunas crescem livres; scrollbar nativo deste container fica oculto. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* Board rola internamente (vertical + horizontal); scrollbar oculto.
+            O scroll vertical interno é o que faz os títulos das colunas (sticky)
+            fixarem logo abaixo do header principal. */}
         <div
           ref={scrollRef}
           onScroll={onContentScroll}
-          className="overflow-x-auto px-10 pb-6 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="min-h-0 flex-1 overflow-auto px-10 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex w-max items-start gap-3.5">
             {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={dragDisabled} />)}
