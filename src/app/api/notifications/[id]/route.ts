@@ -10,7 +10,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const me = await syncCurrentUser();
   if (!me) return new Response("Unauthorized", { status: 401 });
 
-  const body = await req.json();
+  let body: { read?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response("read must be a boolean", { status: 400 });
+  }
   if (typeof body?.read !== "boolean") {
     return new Response("read must be a boolean", { status: 400 });
   }

@@ -58,6 +58,16 @@ describe("PATCH /api/notifications/[id]", () => {
     expect(notificationMocks.setNotificationRead).not.toHaveBeenCalled();
   });
 
+  it("rejeita JSON malformado", async () => {
+    const res = await PATCH(
+      new Request("http://x", { method: "PATCH", body: "{ read: true" }),
+      context,
+    );
+
+    expect(res.status).toBe(400);
+    expect(notificationMocks.setNotificationRead).not.toHaveBeenCalled();
+  });
+
   it("devolve exatamente a resposta de autenticação", async () => {
     const unauth = new Response("Sessão expirada", { status: 401 });
     vi.mocked(requireUser).mockResolvedValueOnce(unauth);
