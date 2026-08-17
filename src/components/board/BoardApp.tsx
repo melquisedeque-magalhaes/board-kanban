@@ -130,6 +130,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
       <Board
         columns={columns}
         setColumns={setColumns}
+        users={users}
         view={view}
         currentUser={currentUser}
         onAdd={setCreateCol}

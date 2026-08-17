@@ -87,6 +87,7 @@ export async function listColumns() {
   return db.column.findMany({
     orderBy: { position: "asc" },
     include: {
+      _count: { select: { subscriptions: true } },
       // Board não mostra cards arquivados.
       cards: { where: { archivedAt: null }, orderBy: { position: "asc" }, include: cardInclude },
     },

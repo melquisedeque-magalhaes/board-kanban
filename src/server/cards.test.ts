@@ -25,10 +25,24 @@ vi.mock("./notifications", () => ({
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
-  createCard, updateCard, getCard, nextCardCode, peekCardCode,
+  createCard, updateCard, getCard, listColumns, nextCardCode, peekCardCode,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("listColumns", () => {
+  it("inclui a contagem de inscrições de cada coluna", async () => {
+    dbMock.column.findMany.mockResolvedValue([]);
+
+    await listColumns();
+
+    expect(dbMock.column.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        _count: { select: { subscriptions: true } },
+      }),
+    }));
+  });
+});
 
 describe("resolveColumnId", () => {
   it("usa columnId direto se válido", async () => {

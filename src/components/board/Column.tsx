@@ -5,17 +5,26 @@ import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, type CardData } from "./Card";
 import { columnSwatch } from "./colors";
+import { ColumnSubscribersPopover } from "./ColumnSubscribersPopover";
+import type { Subscriber } from "./column-subscribers";
 
-export interface ColumnData { id: string; name: string; cards: CardData[]; }
+export interface ColumnData {
+  id: string;
+  name: string;
+  cards: CardData[];
+  _count?: { subscriptions: number };
+}
 
 export function Column({
   column,
+  users,
   onAdd,
   onOpen,
   onArchive,
   dragDisabled,
 }: {
   column: ColumnData;
+  users: Subscriber[];
   onAdd: (columnId: string) => void;
   onOpen?: (id: string) => void;
   onArchive?: (id: string) => void;
@@ -34,6 +43,11 @@ export function Column({
           {column.name}
         </Badge>
         <span className="text-xs text-muted-foreground">{column.cards.length}</span>
+        <ColumnSubscribersPopover
+          columnId={column.id}
+          users={users}
+          initialCount={column._count?.subscriptions ?? 0}
+        />
       </div>
       <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="flex min-h-2 flex-col gap-2">
