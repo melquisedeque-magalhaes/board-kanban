@@ -76,6 +76,44 @@ export function shouldPlayNotificationSound(
   return !(focused && openCardId && items.every((item) => item.cardId === openCardId));
 }
 
+export function createNotificationBatchCoordinator() {
+  let initialized = false;
+  let highestTotalCount = 0;
+  let processedLatestId: string | null = null;
+  let newestRequest = 0;
+
+  return {
+    async process(
+      version: NotificationVersion,
+      loadPage: () => Promise<NotificationPage>,
+    ): Promise<NotificationItem[]> {
+      if (!initialized) {
+        initialized = true;
+        highestTotalCount = version.totalCount;
+        processedLatestId = version.latestId;
+        return [];
+      }
+      if (version.totalCount <= highestTotalCount) return [];
+
+      const previousTotalCount = highestTotalCount;
+      highestTotalCount = version.totalCount;
+      const request = ++newestRequest;
+      let page: NotificationPage;
+      try {
+        page = await loadPage();
+      } catch (error) {
+        if (request === newestRequest) highestTotalCount = previousTotalCount;
+        throw error;
+      }
+
+      if (request !== newestRequest) return [];
+      const fresh = newItemsSince(page.items, processedLatestId);
+      processedLatestId = page.items[0]?.id ?? version.latestId;
+      return fresh;
+    },
+  };
+}
+
 export async function playNotificationChime() {
   const AudioContextCtor = window.AudioContext
     ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -97,7 +135,11 @@ export async function playNotificationChime() {
     oscillator.connect(gain).connect(context.destination);
     oscillator.start(now);
     oscillator.stop(now + 0.18);
-    oscillator.addEventListener("ended", () => void context?.close(), { once: true });
+    oscillator.addEventListener(
+      "ended",
+      () => void context?.close().catch(() => undefined),
+      { once: true },
+    );
   } catch {
     await context?.close().catch(() => undefined);
   }

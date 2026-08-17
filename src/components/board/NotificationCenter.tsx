@@ -6,10 +6,10 @@ import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  createNotificationBatchCoordinator,
   fetchNotificationPage,
   fetchNotificationVersion,
   markAllNotificationsRead,
-  newItemsSince,
   notificationBadge,
   playNotificationChime,
   setNotificationRead,
@@ -40,7 +40,13 @@ export function NotificationCenter({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [batchCoordinator] = useState(createNotificationBatchCoordinator);
   const previousVersion = useRef<NotificationVersion | null>(null);
+  const openCardIdRef = useRef(openCardId);
+
+  useEffect(() => {
+    openCardIdRef.current = openCardId;
+  }, [openCardId]);
 
   const { data: version } = useQuery({
     queryKey: ["notification-version"],
@@ -65,21 +71,22 @@ export function NotificationCenter({
   useEffect(() => {
     if (!version) return;
     const previous = previousVersion.current;
+    if (previous?.version === version.version) return;
+    if (previous && version.totalCount < previous.totalCount) return;
     previousVersion.current = version;
-    if (!previous) return;
+    if (previous) {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
 
-    void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    if (version.totalCount <= previous.totalCount) return;
-
-    void fetchNotificationPage({ pageParam: undefined })
-      .then((page) => {
-        const fresh = newItemsSince(page.items, previous.latestId);
-        if (shouldPlayNotificationSound(fresh, openCardId, document.hasFocus())) {
-          void playNotificationChime();
+    void batchCoordinator
+      .process(version, () => fetchNotificationPage({ pageParam: undefined }))
+      .then((fresh) => {
+        if (shouldPlayNotificationSound(fresh, openCardIdRef.current, document.hasFocus())) {
+          void playNotificationChime().catch(() => undefined);
         }
       })
       .catch(() => undefined);
-  }, [version, openCardId, queryClient]);
+  }, [version, queryClient, batchCoordinator]);
 
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const badge = notificationBadge(version?.unreadCount ?? 0);

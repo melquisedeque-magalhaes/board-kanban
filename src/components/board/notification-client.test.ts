@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createNotificationBatchCoordinator,
   fetchNotificationPage,
   fetchNotificationVersion,
   markAllNotificationsRead,
@@ -9,6 +10,14 @@ import {
   setNotificationRead,
   shouldPlayNotificationSound,
 } from "./notification-client";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 const item = (id: string, cardId: string) => ({
   id,
@@ -40,6 +49,63 @@ describe("shouldPlayNotificationSound", () => {
     expect(shouldPlayNotificationSound([item("n2", "c1")], "c1", true)).toBe(false);
     expect(shouldPlayNotificationSound([item("n2", "c1"), item("n3", "c2")], "c1", true)).toBe(true);
     expect(shouldPlayNotificationSound([item("n2", "c1")], "c1", false)).toBe(true);
+  });
+});
+
+describe("notification batch coordinator", () => {
+  const version = (latestId: string | null, totalCount: number) => ({
+    version: `${latestId ?? "none"}-${totalCount}-0`,
+    unreadCount: 0,
+    totalCount,
+    latestId,
+  });
+
+  it("usa a primeira versão apenas como referência silenciosa", async () => {
+    const loadPage = vi.fn();
+    const coordinator = createNotificationBatchCoordinator();
+
+    await expect(coordinator.process(version("n1", 1), loadPage)).resolves.toEqual([]);
+    expect(loadPage).not.toHaveBeenCalled();
+  });
+
+  it("descarta resposta obsoleta quando páginas sobrepostas terminam fora de ordem", async () => {
+    const first = deferred<{ items: ReturnType<typeof item>[]; nextCursor: null; unreadCount: number }>();
+    const second = deferred<{ items: ReturnType<typeof item>[]; nextCursor: null; unreadCount: number }>();
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("n0", 1), vi.fn());
+
+    const firstResult = coordinator.process(version("n1", 2), () => first.promise);
+    const secondResult = coordinator.process(version("n2", 3), () => second.promise);
+
+    second.resolve({ items: [item("n2", "c2"), item("n1", "c1"), item("n0", "c0")], nextCursor: null, unreadCount: 2 });
+    await expect(secondResult).resolves.toEqual([item("n2", "c2"), item("n1", "c1")]);
+
+    first.resolve({ items: [item("n1", "c1"), item("n0", "c0")], nextCursor: null, unreadCount: 1 });
+    await expect(firstResult).resolves.toEqual([]);
+  });
+
+  it("avança até o latestId realmente processado para não repetir som", async () => {
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("n0", 1), vi.fn());
+
+    const racedPage = {
+      items: [item("n2", "c2"), item("n1", "c1"), item("n0", "c0")],
+      nextCursor: null,
+      unreadCount: 2,
+    };
+    await expect(coordinator.process(version("n1", 2), () => Promise.resolve(racedPage)))
+      .resolves.toEqual([item("n2", "c2"), item("n1", "c1")]);
+    await expect(coordinator.process(version("n2", 3), () => Promise.resolve(racedPage)))
+      .resolves.toEqual([]);
+  });
+
+  it("ignora uma versão com contagem mais antiga", async () => {
+    const loadPage = vi.fn();
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("n2", 3), vi.fn());
+
+    await expect(coordinator.process(version("n1", 2), loadPage)).resolves.toEqual([]);
+    expect(loadPage).not.toHaveBeenCalled();
   });
 });
 
@@ -160,5 +226,48 @@ describe("playNotificationChime", () => {
     expect(oscillator.start).toHaveBeenCalledOnce();
     expect(oscillator.stop).toHaveBeenCalledWith(10.18);
     expect(oscillator.addEventListener).toHaveBeenCalledWith("ended", expect.any(Function), { once: true });
+  });
+
+  it("ignora rejeição ao fechar o contexto depois do toque", async () => {
+    let ended: (() => void) | undefined;
+    const catchCloseError = vi.fn().mockReturnValue(Promise.resolve());
+    const gain = {
+      gain: {
+        setValueAtTime: vi.fn(),
+        exponentialRampToValueAtTime: vi.fn(),
+      },
+      connect: vi.fn(),
+    };
+    const oscillator = {
+      type: "square",
+      frequency: { setValueAtTime: vi.fn() },
+      connect: vi.fn().mockReturnValue(gain),
+      start: vi.fn(),
+      stop: vi.fn(),
+      addEventListener: vi.fn((_event, listener: () => void) => {
+        ended = listener;
+      }),
+    };
+    const context = {
+      currentTime: 10,
+      destination: {},
+      resume: vi.fn().mockResolvedValue(undefined),
+      createOscillator: vi.fn().mockReturnValue(oscillator),
+      createGain: vi.fn().mockReturnValue(gain),
+      close: vi.fn().mockReturnValue({ catch: catchCloseError }),
+    };
+    class AudioContextMock {
+      constructor() {
+        return context;
+      }
+    }
+    vi.stubGlobal("window", { AudioContext: AudioContextMock });
+
+    await playNotificationChime();
+    ended?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(context.close).toHaveBeenCalledOnce();
+    expect(catchCloseError).toHaveBeenCalledWith(expect.any(Function));
   });
 });
