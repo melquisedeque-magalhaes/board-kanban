@@ -157,15 +157,19 @@ export async function listNotifications(recipientId: string, input: { cursor?: s
     db.notification.findMany({
       where: { recipientId },
       take: input.limit + 1,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: { sequence: "desc" },
       ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
       include: { actor: { select: { id: true, name: true, avatarUrl: true } } },
     }),
     db.notification.count({ where: { recipientId, readAt: null } }),
   ]);
   const hasMore = notifications.length > input.limit;
-  const items = notifications.slice(0, input.limit);
-  return { items, nextCursor: hasMore ? items[input.limit - 1].id : null, unreadCount };
+  const page = notifications.slice(0, input.limit);
+  const items = page.map(({ sequence, ...notification }) => ({
+    ...notification,
+    sequence: sequence.toString(),
+  }));
+  return { items, nextCursor: hasMore ? page[input.limit - 1].id : null, unreadCount };
 }
 
 export async function notificationVersion(recipientId: string): Promise<{
@@ -174,23 +178,26 @@ export async function notificationVersion(recipientId: string): Promise<{
   totalCount: number;
   latestId: string | null;
   latestCreatedAt: string | null;
+  latestSequence: string | null;
 }> {
   const [latest, totalCount, unreadCount] = await Promise.all([
     db.notification.findFirst({
       where: { recipientId },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { id: true, createdAt: true },
+      orderBy: { sequence: "desc" },
+      select: { id: true, sequence: true, createdAt: true },
     }),
     db.notification.count({ where: { recipientId } }),
     db.notification.count({ where: { recipientId, readAt: null } }),
   ]);
   const latestCreatedAt = latest?.createdAt.toISOString() ?? null;
+  const latestSequence = latest?.sequence.toString() ?? null;
   return {
-    version: `${latest?.id ?? "none"}-${latestCreatedAt ?? "none"}-${totalCount}-${unreadCount}`,
+    version: `${latestSequence ?? "none"}-${totalCount}-${unreadCount}`,
     unreadCount,
     totalCount,
     latestId: latest?.id ?? null,
     latestCreatedAt,
+    latestSequence,
   };
 }
 

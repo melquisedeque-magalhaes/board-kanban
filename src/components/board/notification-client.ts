@@ -1,5 +1,6 @@
 export type NotificationItem = {
   id: string;
+  sequence: string;
   cardId: string;
   type:
     | "COMMENT_ADDED"
@@ -26,6 +27,7 @@ export type NotificationVersion = {
   totalCount: number;
   latestId: string | null;
   latestCreatedAt: string | null;
+  latestSequence: string | null;
 };
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -78,39 +80,23 @@ export function shouldPlayNotificationSound(
 }
 
 export function createNotificationBatchCoordinator() {
-  type Checkpoint = { id: string; createdAt: string };
   type BatchResult = { changed: boolean; fresh: NotificationItem[] };
 
   const noChange = (): BatchResult => ({ changed: false, fresh: [] });
-  const checkpointFromVersion = (version: NotificationVersion): Checkpoint | null => (
-    version.latestId && version.latestCreatedAt
-      ? { id: version.latestId, createdAt: version.latestCreatedAt }
-      : null
+  const sequenceFromVersion = (version: NotificationVersion) => (
+    version.latestSequence == null ? null : BigInt(version.latestSequence)
   );
-  const compareCheckpoints = (left: Checkpoint, right: Checkpoint) => (
-    left.createdAt === right.createdAt
-      ? left.id.localeCompare(right.id)
-      : left.createdAt.localeCompare(right.createdAt)
+  const newestSequence = (current: bigint | null, candidate: bigint | null) => (
+    candidate != null && (current == null || candidate > current) ? candidate : current
   );
-  const newestCheckpoint = (
-    current: Checkpoint | null,
-    candidate: Checkpoint | null,
-  ): Checkpoint | null => (
-    !candidate || (current && compareCheckpoints(candidate, current) <= 0) ? current : candidate
-  );
-  const freshAfter = (items: NotificationItem[], checkpoint: Checkpoint | null) => (
-    checkpoint
-      ? items.filter((item) => compareCheckpoints(
-        { id: item.id, createdAt: item.createdAt },
-        checkpoint,
-      ) > 0)
-      : items
+  const freshAfter = (items: NotificationItem[], sequence: bigint | null) => (
+    sequence == null ? items : items.filter((item) => BigInt(item.sequence) > sequence)
   );
 
   let confirmedVersion: NotificationVersion | null = null;
-  let creationWatermark: Checkpoint | null = null;
+  let creationWatermark: bigint | null = null;
   let newestRequest = 0;
-  const pendingVersions = new Set<string>();
+  const pendingVersions = new Map<string, number>();
 
   return {
     async process(
@@ -119,41 +105,51 @@ export function createNotificationBatchCoordinator() {
     ): Promise<BatchResult> {
       if (!confirmedVersion) {
         confirmedVersion = version;
-        creationWatermark = checkpointFromVersion(version);
+        creationWatermark = sequenceFromVersion(version);
         return noChange();
       }
-      if (version.version === confirmedVersion.version || pendingVersions.has(version.version)) {
+      if (version.version === confirmedVersion.version) {
+        if (pendingVersions.size) {
+          newestRequest += 1;
+          pendingVersions.clear();
+        }
+        return noChange();
+      }
+      if (pendingVersions.has(version.version)) {
         return noChange();
       }
 
-      const latest = checkpointFromVersion(version);
+      const latest = sequenceFromVersion(version);
       const hasCreation = Boolean(
-        latest && (!creationWatermark || compareCheckpoints(latest, creationWatermark) > 0),
+        latest != null && (creationWatermark == null || latest > creationWatermark),
       );
 
       if (!hasCreation) {
         newestRequest += 1;
+        pendingVersions.clear();
         confirmedVersion = version;
         return { changed: true, fresh: [] };
       }
 
       const request = ++newestRequest;
-      pendingVersions.add(version.version);
+      pendingVersions.clear();
+      pendingVersions.set(version.version, request);
       try {
         const page = await loadPage();
         if (request !== newestRequest) return noChange();
 
         const fresh = freshAfter(page.items, creationWatermark);
         confirmedVersion = version;
-        creationWatermark = newestCheckpoint(creationWatermark, checkpointFromVersion(version));
-        const pageHead = page.items[0];
-        creationWatermark = newestCheckpoint(
+        creationWatermark = newestSequence(creationWatermark, sequenceFromVersion(version));
+        creationWatermark = page.items.reduce(
+          (watermark, item) => newestSequence(watermark, BigInt(item.sequence)),
           creationWatermark,
-          pageHead ? { id: pageHead.id, createdAt: pageHead.createdAt } : null,
         );
         return { changed: true, fresh };
       } finally {
-        pendingVersions.delete(version.version);
+        if (pendingVersions.get(version.version) === request) {
+          pendingVersions.delete(version.version);
+        }
       }
     },
   };

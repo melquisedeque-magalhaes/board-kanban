@@ -12,7 +12,7 @@ import { requireUser } from "@/server/auth-guard";
 import { GET } from "./route";
 
 const page = {
-  items: [{ id: "n1", message: "Há uma atualização" }],
+  items: [{ id: "n1", sequence: "1", message: "Há uma atualização" }],
   nextCursor: null,
   unreadCount: 1,
 };

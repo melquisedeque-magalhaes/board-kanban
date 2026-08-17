@@ -144,6 +144,7 @@ model Counter {
 
 model Notification {
   id          String           @id @default(cuid())
+  sequence    BigInt           @default(autoincrement())
   recipientId String
   recipient   User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actorId     String?
@@ -156,6 +157,7 @@ model Notification {
   createdAt   DateTime         @default(now())
 
   @@index([recipientId, createdAt])
+  @@index([recipientId, sequence])
   @@index([recipientId, readAt, createdAt])
   @@index([cardId])
 }

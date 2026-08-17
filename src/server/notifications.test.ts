@@ -153,17 +153,26 @@ describe("notifyCardMoved", () => {
 
 describe("histórico e leitura", () => {
   it("pagina notificações por id, inclui o ator e devolve a próxima chave", async () => {
-    const notifications = [{ id: "n3" }, { id: "n2" }, { id: "n1" }];
+    const notifications = [
+      { id: "n3", sequence: BigInt(3) },
+      { id: "n2", sequence: BigInt(2) },
+      { id: "n1", sequence: BigInt(1) },
+    ];
     dbMock.notification.findMany.mockResolvedValue(notifications);
     dbMock.notification.count.mockResolvedValue(4);
 
     await expect(listNotifications("u1", { cursor: "n4", limit: 2 })).resolves.toEqual({
-      items: notifications.slice(0, 2), nextCursor: "n2", unreadCount: 4,
+      items: [
+        { id: "n3", sequence: "3" },
+        { id: "n2", sequence: "2" },
+      ],
+      nextCursor: "n2",
+      unreadCount: 4,
     });
     expect(dbMock.notification.findMany).toHaveBeenCalledWith({
       where: { recipientId: "u1" },
       take: 3,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: { sequence: "desc" },
       cursor: { id: "n4" },
       skip: 1,
       include: { actor: { select: { id: true, name: true, avatarUrl: true } } },
@@ -172,19 +181,22 @@ describe("histórico e leitura", () => {
   });
 
   it("devolve primeira página sem cursor e sem próxima chave quando não há overflow", async () => {
-    const notifications = [{ id: "n2" }, { id: "n1" }];
+    const notifications = [
+      { id: "n2", sequence: BigInt(2) },
+      { id: "n1", sequence: BigInt(1) },
+    ];
     dbMock.notification.findMany.mockResolvedValue(notifications);
     dbMock.notification.count.mockResolvedValue(0);
 
     await expect(listNotifications("u1", { limit: 2 })).resolves.toEqual({
-      items: notifications,
+      items: [{ id: "n2", sequence: "2" }, { id: "n1", sequence: "1" }],
       nextCursor: null,
       unreadCount: 0,
     });
     expect(dbMock.notification.findMany).toHaveBeenCalledWith({
       where: { recipientId: "u1" },
       take: 3,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: { sequence: "desc" },
       include: { actor: { select: { id: true, name: true, avatarUrl: true } } },
     });
   });
@@ -192,16 +204,18 @@ describe("histórico e leitura", () => {
   it("calcula a versão por última notificação e contagens", async () => {
     dbMock.notification.findFirst.mockResolvedValue({
       id: "n9",
+      sequence: BigInt(9),
       createdAt: new Date("2026-08-17T12:00:09.000Z"),
     });
     dbMock.notification.count.mockResolvedValueOnce(7).mockResolvedValueOnce(2);
 
     await expect(notificationVersion("u1")).resolves.toEqual({
-      version: "n9-2026-08-17T12:00:09.000Z-7-2",
+      version: "9-7-2",
       unreadCount: 2,
       totalCount: 7,
       latestId: "n9",
       latestCreatedAt: "2026-08-17T12:00:09.000Z",
+      latestSequence: "9",
     });
   });
 

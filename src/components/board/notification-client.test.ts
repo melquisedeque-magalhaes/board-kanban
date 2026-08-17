@@ -19,8 +19,14 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-const item = (id: string, cardId: string, createdAt = "2026-08-17T12:00:00.000Z") => ({
+const item = (
+  id: string,
+  cardId: string,
+  createdAt = "2026-08-17T12:00:00.000Z",
+  sequence = id.match(/\d+/)?.[0] ?? "0",
+) => ({
   id,
+  sequence,
   cardId,
   type: "COMMENT_ADDED" as const,
   message: id,
@@ -57,12 +63,14 @@ describe("notification batch coordinator", () => {
     latestId: string | null,
     totalCount: number,
     latestCreatedAt = latestId ? "2026-08-17T12:00:00.000Z" : null,
+    latestSequence = latestId?.match(/\d+/)?.[0] ?? null,
   ) => ({
-    version: `${latestId ?? "none"}-${totalCount}-0`,
+    version: `${latestSequence ?? "none"}-${totalCount}-0`,
     unreadCount: 0,
     totalCount,
     latestId,
     latestCreatedAt,
+    latestSequence,
   });
 
   it("usa a primeira versão apenas como referência silenciosa", async () => {
@@ -93,6 +101,51 @@ describe("notification batch coordinator", () => {
 
     first.resolve({ items: [item("n1", "c1"), item("n0", "c0")], nextCursor: null, unreadCount: 1 });
     await expect(firstResult).resolves.toEqual({ changed: false, fresh: [] });
+  });
+
+  it("cancela a página pendente quando o poll retorna à versão confirmada", async () => {
+    const pending = deferred<{ items: ReturnType<typeof item>[]; nextCursor: null; unreadCount: number }>();
+    const coordinator = createNotificationBatchCoordinator();
+    const stable = version("n1", 1);
+    await coordinator.process(stable, vi.fn());
+
+    const staleResult = coordinator.process(version("n2", 2), () => pending.promise);
+    await expect(coordinator.process(stable, vi.fn())).resolves.toEqual({
+      changed: false,
+      fresh: [],
+    });
+
+    pending.resolve({
+      items: [item("n2", "c2"), item("n1", "c1")],
+      nextCursor: null,
+      unreadCount: 1,
+    });
+    await expect(staleResult).resolves.toEqual({ changed: false, fresh: [] });
+
+    await expect(coordinator.process(
+      version("n2", 2),
+      () => Promise.resolve({
+        items: [item("n2", "c2"), item("n1", "c1")],
+        nextCursor: null,
+        unreadCount: 1,
+      }),
+    )).resolves.toEqual({ changed: true, fresh: [item("n2", "c2")] });
+  });
+
+  it("detecta criação por sequência mesmo com timestamp igual e CUID menor que o head", async () => {
+    const createdAt = "2026-08-17T12:00:00.000Z";
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("z-head", 1, createdAt, "10"), vi.fn());
+    const newItem = item("a-new", "c2", createdAt, "11");
+
+    await expect(coordinator.process(
+      version("a-new", 2, createdAt, "11"),
+      () => Promise.resolve({
+        items: [newItem, item("z-head", "c1", createdAt, "10")],
+        nextCursor: null,
+        unreadCount: 1,
+      }),
+    )).resolves.toEqual({ changed: true, fresh: [newItem] });
   });
 
   it("avança até o latestId realmente processado para não repetir som", async () => {
@@ -226,6 +279,7 @@ describe("notification fetchers", () => {
       totalCount: 1,
       latestId: "n1",
       latestCreatedAt: "2026-08-17T12:00:00.000Z",
+      latestSequence: "1",
     };
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(version)));
     vi.stubGlobal("fetch", fetchMock);

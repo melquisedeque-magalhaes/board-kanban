@@ -12,11 +12,12 @@ import { requireUser } from "@/server/auth-guard";
 import { GET } from "./route";
 
 const version = {
-  version: "n1-2026-08-17T12:00:00.000Z-3-2",
+  version: "1-3-2",
   unreadCount: 2,
   totalCount: 3,
   latestId: "n1",
   latestCreatedAt: "2026-08-17T12:00:00.000Z",
+  latestSequence: "1",
 };
 
 beforeEach(() => {
