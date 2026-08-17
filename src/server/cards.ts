@@ -3,6 +3,7 @@ import { positionBetween } from "@/lib/positions";
 import type {
   CardFilter, CreateCardInput, UpdateCardInput, Blocker,
 } from "./types";
+import { notifyBlockerChange, notifyCardMoved, notifyComment } from "./notifications";
 
 // Bloqueios que impedem o card de mudar de coluna (reorder na mesma coluna é livre).
 const BLOCKING_MOVE: Blocker[] = ["IMPEDIMENTO", "AJUSTES"];
@@ -250,7 +251,7 @@ export async function createCard(input: CreateCardInput) {
   });
 }
 
-export async function updateCard(id: string, input: UpdateCardInput) {
+export async function updateCard(id: string, input: UpdateCardInput, actor?: string) {
   if (input.parentId === id) throw new Error("Um card não pode ser pai de si mesmo");
   const assignees = input.assignees
     ? { set: (await resolveUserIds(input.assignees)).map((id) => ({ id })) }
@@ -263,67 +264,87 @@ export async function updateCard(id: string, input: UpdateCardInput) {
   // undefined = não mexe; null = limpa; string = resolve para id.
   const requestedById =
     input.requestedBy === undefined ? undefined : await resolveUserId(input.requestedBy);
-  return db.card.update({
-    where: { id },
-    data: {
-      title: input.title, details: input.details !== undefined ? input.details : input.description,
-      documentation: input.documentation,
-      priority: input.priority, type: input.type, version: input.version,
-      branchUrl: input.branchUrl, requestedById,
-      code: input.code, dueDate, assignees, labels,
-      parentId: input.parentId,
-      blocker: input.blocker,
-      blockerReason: input.blockerReason,
-    },
-    include: cardInclude,
+  const actorId = await resolveUserId(actor);
+  return db.$transaction(async (tx) => {
+    const before = await tx.card.findUnique({
+      where: { id }, select: { blocker: true },
+    });
+    const updated = await tx.card.update({
+      where: { id },
+      data: {
+        title: input.title, details: input.details !== undefined ? input.details : input.description,
+        documentation: input.documentation,
+        priority: input.priority, type: input.type, version: input.version,
+        branchUrl: input.branchUrl, requestedById,
+        code: input.code, dueDate, assignees, labels,
+        parentId: input.parentId,
+        blocker: input.blocker,
+        blockerReason: input.blockerReason,
+      },
+      include: cardInclude,
+    });
+    if (before && input.blocker !== undefined && before.blocker !== input.blocker) {
+      await notifyBlockerChange(tx, id, actorId, before.blocker, input.blocker);
+    }
+    return updated;
   });
 }
 
 export async function moveCard(id: string, columnIdRef: string, position?: number, actor?: string) {
-  const current = await db.card.findUnique({
-    where: { id }, select: { columnId: true, blocker: true },
-  });
-  if (!current) throw new Error(`Card não encontrado: ${id}`);
-  const columnId = columnIdRef
-    ? await resolveColumnId({ columnId: columnIdRef, columnName: columnIdRef })
-    : current.columnId;
-  // Bloqueio que trava impede mudar DE coluna; reorder na mesma coluna passa.
-  if (columnId !== current.columnId && current.blocker && BLOCKING_MOVE.includes(current.blocker)) {
-    throw new Error(`Card em ${BLOCKER_LABEL[current.blocker]} não pode mudar de coluna`);
-  }
-  let pos = position;
-  if (pos == null) {
-    const last = await db.card.findMany({
-      where: { columnId }, orderBy: { position: "desc" }, take: 1,
+  const actorId = await resolveUserId(actor);
+  return db.$transaction(async (tx) => {
+    const current = await tx.card.findUnique({
+      where: { id }, select: { columnId: true, blocker: true },
     });
-    pos = positionBetween(last[0]?.position ?? null, null);
-  }
-  // Moveu p/ "Em Andamento" + actor informado → vira responsável (connect, não remove os outros).
-  let assignees: { connect: { id: string }[] } | undefined;
-  if (actor) {
-    const col = await db.column.findUnique({ where: { id: columnId }, select: { name: true } });
-    if (col && /andamento/i.test(col.name)) {
-      const [actorId] = await resolveUserIds([actor]);
-      if (actorId) assignees = { connect: [{ id: actorId }] };
+    if (!current) throw new Error(`Card não encontrado: ${id}`);
+    const target = columnIdRef
+      ? await tx.column.findUnique({
+          where: { id: columnIdRef }, select: { id: true, name: true },
+        }) ?? await tx.column.findFirst({
+          where: { name: columnIdRef }, select: { id: true, name: true },
+        })
+      : await tx.column.findUnique({
+          where: { id: current.columnId }, select: { id: true, name: true },
+        });
+    if (!target) throw new Error(`Coluna não encontrada: ${columnIdRef || current.columnId}`);
+    // Bloqueio que trava impede mudar DE coluna; reorder na mesma coluna passa.
+    if (target.id !== current.columnId && current.blocker && BLOCKING_MOVE.includes(current.blocker)) {
+      throw new Error(`Card em ${BLOCKER_LABEL[current.blocker]} não pode mudar de coluna`);
     }
-  }
-  return db.card.update({
-    where: { id }, data: { columnId, position: pos, assignees }, include: cardInclude,
+    let pos = position;
+    if (pos == null) {
+      const last = await tx.card.findMany({
+        where: { columnId: target.id }, orderBy: { position: "desc" }, take: 1,
+      });
+      pos = positionBetween(last[0]?.position ?? null, null);
+    }
+    // Moveu p/ "Em Andamento" + actor informado → vira responsável (connect, não remove os outros).
+    const assignees = actorId && /andamento/i.test(target.name)
+      ? { connect: [{ id: actorId }] }
+      : undefined;
+    const moved = await tx.card.update({
+      where: { id }, data: { columnId: target.id, position: pos, assignees }, include: cardInclude,
+    });
+    await notifyCardMoved(tx, id, actorId, current.columnId, target);
+    return moved;
   });
 }
 
 export async function addComment(
   cardId: string, body: string, authorId?: string, attachmentIds?: string[],
 ) {
-  const c = await db.comment.create({ data: { cardId, body, authorId } });
-  // Vincula anexos já enviados (commentId null neste card) ao novo comentário.
-  if (attachmentIds?.length) {
-    await db.attachment.updateMany({
-      where: { id: { in: attachmentIds }, cardId, commentId: null },
-      data: { commentId: c.id },
-    });
-  }
-  return { id: c.id };
+  return db.$transaction(async (tx) => {
+    const c = await tx.comment.create({ data: { cardId, body, authorId } });
+    // Vincula anexos já enviados (commentId null neste card) ao novo comentário.
+    if (attachmentIds?.length) {
+      await tx.attachment.updateMany({
+        where: { id: { in: attachmentIds }, cardId, commentId: null },
+        data: { commentId: c.id },
+      });
+    }
+    await notifyComment(tx, cardId, authorId);
+    return { id: c.id };
+  });
 }
 
 export function getComment(id: string) {

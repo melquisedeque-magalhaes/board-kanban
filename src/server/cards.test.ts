@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
+  $transaction: vi.fn(async (fn: (tx: typeof dbMock) => unknown) => fn(dbMock)),
   column: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
   card: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   user: { findMany: vi.fn() },
@@ -8,8 +9,19 @@ const dbMock = vi.hoisted(() => ({
   comment: { create: vi.fn() },
   attachment: { updateMany: vi.fn() },
   counter: { update: vi.fn(), findUnique: vi.fn() },
+  notification: { createMany: vi.fn() },
+  columnSubscription: { findMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
+
+const notificationMock = vi.hoisted(() => ({
+  moved: vi.fn(), blocker: vi.fn(), comment: vi.fn(),
+}));
+vi.mock("./notifications", () => ({
+  notifyCardMoved: notificationMock.moved,
+  notifyBlockerChange: notificationMock.blocker,
+  notifyComment: notificationMock.comment,
+}));
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
@@ -76,6 +88,21 @@ describe("moveCard", () => {
     await expect(moveCard("card1", "c1")).resolves.toBeTruthy();
     expect(dbMock.card.update).toHaveBeenCalled();
   });
+
+  it("emite a mudança de coluna dentro da transação com o ator resolvido", async () => {
+    dbMock.user.findMany.mockResolvedValue([{ id: "u1" }]);
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c2", name: "Aguardando Teste" });
+    dbMock.card.findMany.mockResolvedValue([{ position: 1000 }]);
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c2", position: 2000 });
+
+    await moveCard("card1", "c2", undefined, "Giovanni");
+
+    expect(dbMock.$transaction).toHaveBeenCalledOnce();
+    expect(notificationMock.moved).toHaveBeenCalledWith(
+      dbMock, "card1", "u1", "c1", { id: "c2", name: "Aguardando Teste" },
+    );
+  });
 });
 
 describe("deleteCard", () => {
@@ -130,6 +157,15 @@ describe("addComment", () => {
     await addComment("card1", "texto");
     expect(dbMock.attachment.updateMany).not.toHaveBeenCalled();
   });
+
+  it("emite o comentário na mesma transação", async () => {
+    dbMock.comment.create.mockResolvedValue({ id: "cm3" });
+
+    expect(await addComment("card1", "texto", "u1")).toEqual({ id: "cm3" });
+
+    expect(dbMock.$transaction).toHaveBeenCalledOnce();
+    expect(notificationMock.comment).toHaveBeenCalledWith(dbMock, "card1", "u1");
+  });
 });
 
 describe("createCard subtask/blocker", () => {
@@ -171,6 +207,28 @@ describe("updateCard blocker", () => {
   it("rejeita um card sendo pai de si mesmo", async () => {
     await expect(updateCard("c1", { parentId: "c1" })).rejects.toThrow();
     expect(dbMock.card.update).not.toHaveBeenCalled();
+  });
+
+  it("emite alteração de blocker dentro da transação com o ator resolvido", async () => {
+    dbMock.user.findMany.mockResolvedValue([{ id: "u1" }]);
+    dbMock.card.findUnique.mockResolvedValue({ blocker: null });
+    dbMock.card.update.mockResolvedValue({ id: "card1", blocker: "IMPEDIMENTO" });
+
+    await updateCard("card1", { blocker: "IMPEDIMENTO" }, "Giovanni");
+
+    expect(dbMock.$transaction).toHaveBeenCalledOnce();
+    expect(notificationMock.blocker).toHaveBeenCalledWith(
+      dbMock, "card1", "u1", null, "IMPEDIMENTO",
+    );
+  });
+
+  it("não emite alteração de blocker ao editar somente o motivo", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ blocker: "IMPEDIMENTO" });
+    dbMock.card.update.mockResolvedValue({ id: "card1", blocker: "IMPEDIMENTO" });
+
+    await updateCard("card1", { blockerReason: "aguardando API" }, "u1");
+
+    expect(notificationMock.blocker).not.toHaveBeenCalled();
   });
 });
 

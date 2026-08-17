@@ -1,25 +1,29 @@
 import { describe, it, expect, vi } from "vitest";
 const createCard = vi.fn().mockResolvedValue({ id: "new" });
+const updateCard = vi.fn().mockResolvedValue({ id: "card1" });
+const moveCard = vi.fn().mockResolvedValue({ id: "card1" });
+const addComment = vi.fn().mockResolvedValue({ id: "comment1" });
+const resolveUserIds = vi.fn().mockResolvedValue(["u1"]);
 vi.mock("@/server/cards", () => ({
   listColumns: vi.fn().mockResolvedValue([{ id: "c1", name: "A Fazer" }]),
   listCards: vi.fn(),
   getCard: vi.fn(),
   createCard: (...args: unknown[]) => createCard(...args),
-  updateCard: vi.fn(),
+  updateCard: (...args: unknown[]) => updateCard(...args),
   deleteCard: vi.fn(),
   archiveCard: vi.fn(),
   unarchiveCard: vi.fn(),
   listArchivedCards: vi.fn(),
   assignCard: vi.fn(),
   unassignCard: vi.fn(),
-  moveCard: vi.fn(),
-  addComment: vi.fn(),
+  moveCard: (...args: unknown[]) => moveCard(...args),
+  addComment: (...args: unknown[]) => addComment(...args),
   updateComment: vi.fn(),
   addAttachment: vi.fn(),
   listAttachments: vi.fn(),
   listUsers: vi.fn(),
   listLabels: vi.fn(),
-  resolveUserIds: vi.fn(),
+  resolveUserIds: (...args: unknown[]) => resolveUserIds(...args),
 }));
 import { buildMcpServer } from "./server";
 
@@ -50,6 +54,12 @@ describe("buildMcpServer", () => {
     return tools.create_card.handler;
   };
 
+  const callback = (name: "update_card" | "move_card" | "add_comment") => {
+    const s = buildMcpServer();
+    const tools = (s as unknown as { _registeredTools: Record<string, Tool> })._registeredTools;
+    return tools[name].handler;
+  };
+
   it("create_card: createdBy vira 'Solicitado por' quando não há requestedBy", async () => {
     createCard.mockClear();
     await createCallback()({ columnName: "A Fazer", title: "novo", createdBy: "me" });
@@ -66,5 +76,24 @@ describe("buildMcpServer", () => {
     createCard.mockClear();
     await createCallback()({ columnName: "A Fazer", title: "novo" });
     expect(createCard).toHaveBeenCalledWith(expect.not.objectContaining({ requestedBy: expect.anything() }));
+  });
+
+  it("update_card encaminha actor separado dos campos editáveis", async () => {
+    await callback("update_card")({ id: "card1", blocker: "AVISO", actor: "Giovanni" });
+
+    expect(updateCard).toHaveBeenCalledWith("card1", { blocker: "AVISO" }, "Giovanni");
+  });
+
+  it("move_card encaminha actor", async () => {
+    await callback("move_card")({ id: "card1", columnId: "c2", actor: "Giovanni" });
+
+    expect(moveCard).toHaveBeenCalledWith("card1", "c2", undefined, "Giovanni");
+  });
+
+  it("add_comment resolve actor e encaminha o id do autor", async () => {
+    await callback("add_comment")({ cardId: "card1", body: "Comentário", actor: "Giovanni" });
+
+    expect(resolveUserIds).toHaveBeenCalledWith(["Giovanni"]);
+    expect(addComment).toHaveBeenCalledWith("card1", "Comentário", "u1");
   });
 });
