@@ -19,13 +19,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-const item = (id: string, cardId: string) => ({
+const item = (id: string, cardId: string, createdAt = "2026-08-17T12:00:00.000Z") => ({
   id,
   cardId,
   type: "COMMENT_ADDED" as const,
   message: id,
   readAt: null,
-  createdAt: "2026-08-17T12:00:00.000Z",
+  createdAt,
   actor: null,
 });
 
@@ -53,18 +53,26 @@ describe("shouldPlayNotificationSound", () => {
 });
 
 describe("notification batch coordinator", () => {
-  const version = (latestId: string | null, totalCount: number) => ({
+  const version = (
+    latestId: string | null,
+    totalCount: number,
+    latestCreatedAt = latestId ? "2026-08-17T12:00:00.000Z" : null,
+  ) => ({
     version: `${latestId ?? "none"}-${totalCount}-0`,
     unreadCount: 0,
     totalCount,
     latestId,
+    latestCreatedAt,
   });
 
   it("usa a primeira versão apenas como referência silenciosa", async () => {
     const loadPage = vi.fn();
     const coordinator = createNotificationBatchCoordinator();
 
-    await expect(coordinator.process(version("n1", 1), loadPage)).resolves.toEqual([]);
+    await expect(coordinator.process(version("n1", 1), loadPage)).resolves.toEqual({
+      changed: false,
+      fresh: [],
+    });
     expect(loadPage).not.toHaveBeenCalled();
   });
 
@@ -78,10 +86,13 @@ describe("notification batch coordinator", () => {
     const secondResult = coordinator.process(version("n2", 3), () => second.promise);
 
     second.resolve({ items: [item("n2", "c2"), item("n1", "c1"), item("n0", "c0")], nextCursor: null, unreadCount: 2 });
-    await expect(secondResult).resolves.toEqual([item("n2", "c2"), item("n1", "c1")]);
+    await expect(secondResult).resolves.toEqual({
+      changed: true,
+      fresh: [item("n2", "c2"), item("n1", "c1")],
+    });
 
     first.resolve({ items: [item("n1", "c1"), item("n0", "c0")], nextCursor: null, unreadCount: 1 });
-    await expect(firstResult).resolves.toEqual([]);
+    await expect(firstResult).resolves.toEqual({ changed: false, fresh: [] });
   });
 
   it("avança até o latestId realmente processado para não repetir som", async () => {
@@ -94,18 +105,99 @@ describe("notification batch coordinator", () => {
       unreadCount: 2,
     };
     await expect(coordinator.process(version("n1", 2), () => Promise.resolve(racedPage)))
-      .resolves.toEqual([item("n2", "c2"), item("n1", "c1")]);
-    await expect(coordinator.process(version("n2", 3), () => Promise.resolve(racedPage)))
-      .resolves.toEqual([]);
+      .resolves.toEqual({
+        changed: true,
+        fresh: [item("n2", "c2"), item("n1", "c1")],
+      });
+    const redundantLoad = vi.fn().mockResolvedValue(racedPage);
+    await expect(coordinator.process(version("n2", 3), redundantLoad))
+      .resolves.toEqual({ changed: true, fresh: [] });
+    expect(redundantLoad).not.toHaveBeenCalled();
   });
 
-  it("ignora uma versão com contagem mais antiga", async () => {
+  it("invalida a lista quando uma cascade reduz a contagem sem tocar som", async () => {
     const loadPage = vi.fn();
     const coordinator = createNotificationBatchCoordinator();
     await coordinator.process(version("n2", 3), vi.fn());
 
-    await expect(coordinator.process(version("n1", 2), loadPage)).resolves.toEqual([]);
+    await expect(coordinator.process(version("n1", 2), loadPage)).resolves.toEqual({
+      changed: true,
+      fresh: [],
+    });
     expect(loadPage).not.toHaveBeenCalled();
+  });
+
+  it("detecta uma criação posterior a uma queda sem repetir itens anteriores", async () => {
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("n3", 3, "2026-08-17T12:00:03.000Z"), vi.fn());
+    await coordinator.process(version("n2", 2, "2026-08-17T12:00:02.000Z"), vi.fn());
+
+    const page = {
+      items: [
+        item("n4", "c4", "2026-08-17T12:00:04.000Z"),
+        item("n2", "c2", "2026-08-17T12:00:02.000Z"),
+        item("n1", "c1", "2026-08-17T12:00:01.000Z"),
+      ],
+      nextCursor: null,
+      unreadCount: 1,
+    };
+
+    await expect(coordinator.process(
+      version("n4", 3, "2026-08-17T12:00:04.000Z"),
+      () => Promise.resolve(page),
+    )).resolves.toEqual({ changed: true, fresh: [page.items[0]] });
+  });
+
+  it("detecta delete e insert com saldo total zero e confirma o lote uma única vez", async () => {
+    const loadPage = vi.fn().mockResolvedValue({
+      items: [
+        item("n4", "c4", "2026-08-17T12:00:04.000Z"),
+        item("n2", "c2", "2026-08-17T12:00:02.000Z"),
+        item("n1", "c1", "2026-08-17T12:00:01.000Z"),
+      ],
+      nextCursor: null,
+      unreadCount: 1,
+    });
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("n3", 3, "2026-08-17T12:00:03.000Z"), vi.fn());
+
+    const changed = version("n4", 3, "2026-08-17T12:00:04.000Z");
+    await expect(coordinator.process(changed, loadPage)).resolves.toEqual({
+      changed: true,
+      fresh: [item("n4", "c4", "2026-08-17T12:00:04.000Z")],
+    });
+    await expect(coordinator.process(changed, loadPage)).resolves.toEqual({
+      changed: false,
+      fresh: [],
+    });
+    expect(loadPage).toHaveBeenCalledOnce();
+  });
+
+  it("repete a mesma versão após falha transitória e toca o lote só após sucesso", async () => {
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("n1", 1, "2026-08-17T12:00:01.000Z"), vi.fn());
+    const changed = version("n2", 2, "2026-08-17T12:00:02.000Z");
+    const loadPage = vi.fn()
+      .mockRejectedValueOnce(new Error("temporário"))
+      .mockResolvedValueOnce({
+        items: [
+          item("n2", "c2", "2026-08-17T12:00:02.000Z"),
+          item("n1", "c1", "2026-08-17T12:00:01.000Z"),
+        ],
+        nextCursor: null,
+        unreadCount: 1,
+      });
+
+    await expect(coordinator.process(changed, loadPage)).rejects.toThrow("temporário");
+    await expect(coordinator.process(changed, loadPage)).resolves.toEqual({
+      changed: true,
+      fresh: [item("n2", "c2", "2026-08-17T12:00:02.000Z")],
+    });
+    await expect(coordinator.process(changed, loadPage)).resolves.toEqual({
+      changed: false,
+      fresh: [],
+    });
+    expect(loadPage).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -128,7 +220,13 @@ describe("notification fetchers", () => {
   });
 
   it("busca a versão leve das notificações", async () => {
-    const version = { version: "n1-1-1", unreadCount: 1, totalCount: 1, latestId: "n1" };
+    const version = {
+      version: "n1-2026-08-17T12:00:00.000Z-1-1",
+      unreadCount: 1,
+      totalCount: 1,
+      latestId: "n1",
+      latestCreatedAt: "2026-08-17T12:00:00.000Z",
+    };
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(version)));
     vi.stubGlobal("fetch", fetchMock);
 

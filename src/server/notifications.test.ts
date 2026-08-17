@@ -171,12 +171,37 @@ describe("histórico e leitura", () => {
     expect(dbMock.notification.count).toHaveBeenCalledWith({ where: { recipientId: "u1", readAt: null } });
   });
 
+  it("devolve primeira página sem cursor e sem próxima chave quando não há overflow", async () => {
+    const notifications = [{ id: "n2" }, { id: "n1" }];
+    dbMock.notification.findMany.mockResolvedValue(notifications);
+    dbMock.notification.count.mockResolvedValue(0);
+
+    await expect(listNotifications("u1", { limit: 2 })).resolves.toEqual({
+      items: notifications,
+      nextCursor: null,
+      unreadCount: 0,
+    });
+    expect(dbMock.notification.findMany).toHaveBeenCalledWith({
+      where: { recipientId: "u1" },
+      take: 3,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: { actor: { select: { id: true, name: true, avatarUrl: true } } },
+    });
+  });
+
   it("calcula a versão por última notificação e contagens", async () => {
-    dbMock.notification.findFirst.mockResolvedValue({ id: "n9" });
+    dbMock.notification.findFirst.mockResolvedValue({
+      id: "n9",
+      createdAt: new Date("2026-08-17T12:00:09.000Z"),
+    });
     dbMock.notification.count.mockResolvedValueOnce(7).mockResolvedValueOnce(2);
 
     await expect(notificationVersion("u1")).resolves.toEqual({
-      version: "n9-7-2", unreadCount: 2, totalCount: 7, latestId: "n9",
+      version: "n9-2026-08-17T12:00:09.000Z-7-2",
+      unreadCount: 2,
+      totalCount: 7,
+      latestId: "n9",
+      latestCreatedAt: "2026-08-17T12:00:09.000Z",
     });
   });
 
@@ -187,6 +212,16 @@ describe("histórico e leitura", () => {
     expect(dbMock.notification.updateMany).toHaveBeenCalledWith({
       where: { id: "n1", recipientId: "u1" },
       data: { readAt: expect.any(Date) },
+    });
+  });
+
+  it("remove a marca de leitura somente da notificação do destinatário", async () => {
+    dbMock.notification.updateMany.mockResolvedValue({ count: 1 });
+    await setNotificationRead("u1", "n1", false);
+
+    expect(dbMock.notification.updateMany).toHaveBeenCalledWith({
+      where: { id: "n1", recipientId: "u1" },
+      data: { readAt: null },
     });
   });
 
@@ -208,11 +243,19 @@ describe("histórico e leitura", () => {
 
 describe("inscrições de coluna", () => {
   it("lista inscritos com os usuários ordenados por nome", async () => {
+    dbMock.column.findUnique.mockResolvedValue({ id: "col1" });
     dbMock.columnSubscription.findMany.mockResolvedValue([{ userId: "u1" }]);
     await expect(listColumnSubscribers("col1")).resolves.toEqual([{ userId: "u1" }]);
     expect(dbMock.columnSubscription.findMany).toHaveBeenCalledWith({
       where: { columnId: "col1" }, include: { user: true }, orderBy: { user: { name: "asc" } },
     });
+  });
+
+  it("rejeita a listagem de uma coluna inexistente", async () => {
+    dbMock.column.findUnique.mockResolvedValue(null);
+
+    await expect(listColumnSubscribers("missing")).rejects.toThrow("Coluna não encontrada");
+    expect(dbMock.columnSubscription.findMany).not.toHaveBeenCalled();
   });
 
   it("faz subscribe idempotente pela chave composta", async () => {

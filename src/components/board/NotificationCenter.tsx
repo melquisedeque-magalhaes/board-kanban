@@ -15,7 +15,6 @@ import {
   setNotificationRead,
   shouldPlayNotificationSound,
   type NotificationItem,
-  type NotificationVersion,
 } from "./notification-client";
 
 const relativeTime = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
@@ -41,14 +40,13 @@ export function NotificationCenter({
   const [open, setOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [batchCoordinator] = useState(createNotificationBatchCoordinator);
-  const previousVersion = useRef<NotificationVersion | null>(null);
   const openCardIdRef = useRef(openCardId);
 
   useLayoutEffect(() => {
     openCardIdRef.current = openCardId;
   }, [openCardId]);
 
-  const { data: version } = useQuery({
+  const { data: version, dataUpdatedAt: versionUpdatedAt } = useQuery({
     queryKey: ["notification-version"],
     queryFn: fetchNotificationVersion,
     refetchInterval: 3_000,
@@ -70,23 +68,18 @@ export function NotificationCenter({
 
   useEffect(() => {
     if (!version) return;
-    const previous = previousVersion.current;
-    if (previous?.version === version.version) return;
-    if (previous && version.totalCount < previous.totalCount) return;
-    previousVersion.current = version;
-    if (previous) {
-      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    }
-
     void batchCoordinator
       .process(version, () => fetchNotificationPage({ pageParam: undefined }))
-      .then((fresh) => {
+      .then(({ changed, fresh }) => {
+        if (changed) {
+          void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        }
         if (shouldPlayNotificationSound(fresh, openCardIdRef.current, document.hasFocus())) {
           void playNotificationChime().catch(() => undefined);
         }
       })
       .catch(() => undefined);
-  }, [version, queryClient, batchCoordinator]);
+  }, [version, versionUpdatedAt, queryClient, batchCoordinator]);
 
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const badge = notificationBadge(version?.unreadCount ?? 0);

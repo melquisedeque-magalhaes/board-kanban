@@ -25,6 +25,7 @@ export type NotificationVersion = {
   unreadCount: number;
   totalCount: number;
   latestId: string | null;
+  latestCreatedAt: string | null;
 };
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -77,39 +78,83 @@ export function shouldPlayNotificationSound(
 }
 
 export function createNotificationBatchCoordinator() {
-  let initialized = false;
-  let highestTotalCount = 0;
-  let processedLatestId: string | null = null;
+  type Checkpoint = { id: string; createdAt: string };
+  type BatchResult = { changed: boolean; fresh: NotificationItem[] };
+
+  const noChange = (): BatchResult => ({ changed: false, fresh: [] });
+  const checkpointFromVersion = (version: NotificationVersion): Checkpoint | null => (
+    version.latestId && version.latestCreatedAt
+      ? { id: version.latestId, createdAt: version.latestCreatedAt }
+      : null
+  );
+  const compareCheckpoints = (left: Checkpoint, right: Checkpoint) => (
+    left.createdAt === right.createdAt
+      ? left.id.localeCompare(right.id)
+      : left.createdAt.localeCompare(right.createdAt)
+  );
+  const newestCheckpoint = (
+    current: Checkpoint | null,
+    candidate: Checkpoint | null,
+  ): Checkpoint | null => (
+    !candidate || (current && compareCheckpoints(candidate, current) <= 0) ? current : candidate
+  );
+  const freshAfter = (items: NotificationItem[], checkpoint: Checkpoint | null) => (
+    checkpoint
+      ? items.filter((item) => compareCheckpoints(
+        { id: item.id, createdAt: item.createdAt },
+        checkpoint,
+      ) > 0)
+      : items
+  );
+
+  let confirmedVersion: NotificationVersion | null = null;
+  let creationWatermark: Checkpoint | null = null;
   let newestRequest = 0;
+  const pendingVersions = new Set<string>();
 
   return {
     async process(
       version: NotificationVersion,
       loadPage: () => Promise<NotificationPage>,
-    ): Promise<NotificationItem[]> {
-      if (!initialized) {
-        initialized = true;
-        highestTotalCount = version.totalCount;
-        processedLatestId = version.latestId;
-        return [];
+    ): Promise<BatchResult> {
+      if (!confirmedVersion) {
+        confirmedVersion = version;
+        creationWatermark = checkpointFromVersion(version);
+        return noChange();
       }
-      if (version.totalCount <= highestTotalCount) return [];
+      if (version.version === confirmedVersion.version || pendingVersions.has(version.version)) {
+        return noChange();
+      }
 
-      const previousTotalCount = highestTotalCount;
-      highestTotalCount = version.totalCount;
+      const latest = checkpointFromVersion(version);
+      const hasCreation = Boolean(
+        latest && (!creationWatermark || compareCheckpoints(latest, creationWatermark) > 0),
+      );
+
+      if (!hasCreation) {
+        newestRequest += 1;
+        confirmedVersion = version;
+        return { changed: true, fresh: [] };
+      }
+
       const request = ++newestRequest;
-      let page: NotificationPage;
+      pendingVersions.add(version.version);
       try {
-        page = await loadPage();
-      } catch (error) {
-        if (request === newestRequest) highestTotalCount = previousTotalCount;
-        throw error;
-      }
+        const page = await loadPage();
+        if (request !== newestRequest) return noChange();
 
-      if (request !== newestRequest) return [];
-      const fresh = newItemsSince(page.items, processedLatestId);
-      processedLatestId = page.items[0]?.id ?? version.latestId;
-      return fresh;
+        const fresh = freshAfter(page.items, creationWatermark);
+        confirmedVersion = version;
+        creationWatermark = newestCheckpoint(creationWatermark, checkpointFromVersion(version));
+        const pageHead = page.items[0];
+        creationWatermark = newestCheckpoint(
+          creationWatermark,
+          pageHead ? { id: pageHead.id, createdAt: pageHead.createdAt } : null,
+        );
+        return { changed: true, fresh };
+      } finally {
+        pendingVersions.delete(version.version);
+      }
     },
   };
 }

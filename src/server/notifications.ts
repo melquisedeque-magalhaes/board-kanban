@@ -173,21 +173,24 @@ export async function notificationVersion(recipientId: string): Promise<{
   unreadCount: number;
   totalCount: number;
   latestId: string | null;
+  latestCreatedAt: string | null;
 }> {
   const [latest, totalCount, unreadCount] = await Promise.all([
     db.notification.findFirst({
       where: { recipientId },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { id: true },
+      select: { id: true, createdAt: true },
     }),
     db.notification.count({ where: { recipientId } }),
     db.notification.count({ where: { recipientId, readAt: null } }),
   ]);
+  const latestCreatedAt = latest?.createdAt.toISOString() ?? null;
   return {
-    version: `${latest?.id ?? "none"}-${totalCount}-${unreadCount}`,
+    version: `${latest?.id ?? "none"}-${latestCreatedAt ?? "none"}-${totalCount}-${unreadCount}`,
     unreadCount,
     totalCount,
     latestId: latest?.id ?? null,
+    latestCreatedAt,
   };
 }
 
@@ -217,11 +220,15 @@ async function validateColumnAndUser(columnId: string, userId: string) {
   if (!user) throw new Error("Usuário não encontrado");
 }
 
-export const listColumnSubscribers = (columnId: string) => db.columnSubscription.findMany({
-  where: { columnId },
-  include: { user: true },
-  orderBy: { user: { name: "asc" } },
-});
+export async function listColumnSubscribers(columnId: string) {
+  const column = await db.column.findUnique({ where: { id: columnId }, select: { id: true } });
+  if (!column) throw new Error("Coluna não encontrada");
+  return db.columnSubscription.findMany({
+    where: { columnId },
+    include: { user: true },
+    orderBy: { user: { name: "asc" } },
+  });
+}
 
 export async function subscribeToColumn(columnId: string, userId: string) {
   await validateColumnAndUser(columnId, userId);

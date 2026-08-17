@@ -11,7 +11,13 @@ vi.mock("@/server/users", () => ({ syncCurrentUser }));
 import { requireUser } from "@/server/auth-guard";
 import { GET } from "./route";
 
-const version = { version: "n1-3-2", unreadCount: 2, totalCount: 3, latestId: "n1" };
+const version = {
+  version: "n1-2026-08-17T12:00:00.000Z-3-2",
+  unreadCount: 2,
+  totalCount: 3,
+  latestId: "n1",
+  latestCreatedAt: "2026-08-17T12:00:00.000Z",
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
