@@ -243,7 +243,8 @@ Regras do som:
 - com a aba focada, o som é suprimido quando todas as notificações novas do lote
   pertencem ao card já aberto; se o lote também trouxer outro card, o som toca;
 - falhas de autoplay ou reprodução são ignoradas sem toast;
-- usar um áudio curto e local em `public`, sem dependência de rede.
+- sintetizar um toque curto via Web Audio API, sem dependência de rede ou asset
+  binário; se `AudioContext` estiver bloqueado, ignorar a reprodução.
 
 O alerta visual e a persistência não dependem do sucesso do áudio.
 
