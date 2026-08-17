@@ -319,7 +319,7 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
       pos = positionBetween(last[0]?.position ?? null, null);
     }
     // Moveu p/ "Em Andamento" + actor informado → vira responsável (connect, não remove os outros).
-    const assignees = actorId && /andamento/i.test(target.name)
+    const assignees = target.id !== current.columnId && actorId && /andamento/i.test(target.name)
       ? { connect: [{ id: actorId }] }
       : undefined;
     const moved = await tx.card.update({

@@ -89,6 +89,19 @@ describe("moveCard", () => {
     expect(dbMock.card.update).toHaveBeenCalled();
   });
 
+  it("não autoatribui o ator ao reordenar na mesma coluna Em Andamento", async () => {
+    dbMock.user.findMany.mockResolvedValue([{ id: "u1" }]);
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c1", name: "Em Andamento" });
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c1", position: 1000 });
+
+    await moveCard("card1", "c1", 1000, "Giovanni");
+
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { columnId: "c1", position: 1000, assignees: undefined },
+    }));
+  });
+
   it("emite a mudança de coluna dentro da transação com o ator resolvido", async () => {
     dbMock.user.findMany.mockResolvedValue([{ id: "u1" }]);
     dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null });
