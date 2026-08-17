@@ -1,3 +1,9 @@
+BEGIN;
+
+-- Prevent concurrent notification inserts until backfill, default removal and
+-- trigger installation are committed as one atomic change.
+LOCK TABLE "Notification" IN SHARE ROW EXCLUSIVE MODE;
+
 -- CreateTable
 CREATE TABLE "NotificationCursor" (
   "recipientId" TEXT NOT NULL,
@@ -43,3 +49,5 @@ CREATE TRIGGER "Notification_assign_revision"
 BEFORE INSERT ON "Notification"
 FOR EACH ROW
 EXECUTE FUNCTION "assign_notification_revision"();
+
+COMMIT;

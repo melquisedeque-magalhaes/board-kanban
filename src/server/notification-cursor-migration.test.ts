@@ -13,6 +13,18 @@ describe("migration de revisões por destinatário", () => {
     if (!existsSync(migration)) return;
 
     const sql = readFileSync(migration, "utf8");
+    const normalized = sql.trim();
+    const lock = sql.indexOf('LOCK TABLE "Notification" IN SHARE ROW EXCLUSIVE MODE');
+    const backfill = sql.indexOf('INSERT INTO "NotificationCursor"');
+    const dropDefault = sql.indexOf('ALTER TABLE "Notification" ALTER COLUMN "sequence" DROP DEFAULT');
+    const trigger = sql.indexOf('CREATE TRIGGER "Notification_assign_revision"');
+
+    expect(normalized.startsWith("BEGIN;")).toBe(true);
+    expect(normalized.endsWith("COMMIT;")).toBe(true);
+    expect(lock).toBeGreaterThan(-1);
+    expect(lock).toBeLessThan(backfill);
+    expect(lock).toBeLessThan(dropDefault);
+    expect(lock).toBeLessThan(trigger);
     expect(sql).toMatch(/CREATE TABLE "NotificationCursor"/);
     expect(sql).toMatch(/MAX\("sequence"\)/);
     expect(sql).toMatch(/ALTER COLUMN "sequence" DROP DEFAULT/);
