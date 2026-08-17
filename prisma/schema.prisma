@@ -26,6 +26,15 @@ enum Blocker {
   AJUSTES
 }
 
+enum NotificationType {
+  CARD_READY_FOR_TEST
+  CARD_ENTERED_COLUMN
+  COMMENT_ADDED
+  BLOCKER_ADDED
+  BLOCKER_REMOVED
+  BLOCKER_CHANGED
+}
+
 model Board {
   id        String   @id @default(cuid())
   name      String
@@ -34,43 +43,45 @@ model Board {
 }
 
 model Column {
-  id       String  @id @default(cuid())
-  boardId  String
-  board    Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  name     String
-  color    String?
-  position Float
-  cards    Card[]
+  id            String               @id @default(cuid())
+  boardId       String
+  board         Board                @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name          String
+  color         String?
+  position      Float
+  cards         Card[]
+  subscriptions ColumnSubscription[]
 }
 
 model Card {
-  id          String    @id @default(cuid())
-  columnId    String
-  column      Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  code        String?
-  title       String
-  details     String?   @db.Text
-  documentation String?   @db.Text
-  priority    Priority?
-  type        CardType?
-  version     String?
-  branchUrl   String?
-  dueDate     DateTime?
-  archivedAt  DateTime?
-  position    Float
+  id            String         @id @default(cuid())
+  columnId      String
+  column        Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  code          String?
+  title         String
+  details       String?        @db.Text
+  documentation String?        @db.Text
+  priority      Priority?
+  type          CardType?
+  version       String?
+  branchUrl     String?
+  dueDate       DateTime?
+  archivedAt    DateTime?
+  position      Float
   requestedById String?
-  requestedBy   User?   @relation("CardRequester", fields: [requestedById], references: [id])
+  requestedBy   User?          @relation("CardRequester", fields: [requestedById], references: [id])
   parentId      String?
-  parent        Card?     @relation("Subtasks", fields: [parentId], references: [id], onDelete: SetNull)
-  children      Card[]    @relation("Subtasks")
+  parent        Card?          @relation("Subtasks", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Card[]         @relation("Subtasks")
   blocker       Blocker?
-  blockerReason String?   @db.Text
-  assignees   User[]    @relation("CardAssignees")
-  labels      Label[]   @relation("CardLabels")
-  comments    Comment[]
-  attachments Attachment[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  blockerReason String?        @db.Text
+  assignees     User[]         @relation("CardAssignees")
+  labels        Label[]        @relation("CardLabels")
+  comments      Comment[]
+  notifications Notification[]
+  attachments   Attachment[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([archivedAt])
   @@index([parentId])
@@ -93,15 +104,19 @@ model Attachment {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  clerkId          String?   @unique
-  name             String
-  email            String?   @unique
-  avatarUrl        String?
-  profileCustomized Boolean  @default(false)
-  cards            Card[]    @relation("CardAssignees")
-  requestedCards   Card[]    @relation("CardRequester")
-  comments         Comment[]
+  id                    String               @id @default(cuid())
+  clerkId               String?              @unique
+  name                  String
+  email                 String?              @unique
+  avatarUrl             String?
+  profileCustomized     Boolean              @default(false)
+  cards                 Card[]               @relation("CardAssignees")
+  requestedCards        Card[]               @relation("CardRequester")
+  comments              Comment[]
+  receivedNotifications Notification[]       @relation("NotificationRecipient")
+  notificationActions   Notification[]       @relation("NotificationActor")
+  notificationCursor    NotificationCursor?
+  columnSubscriptions   ColumnSubscription[]
 }
 
 model Label {
@@ -126,4 +141,41 @@ model Counter {
   id    String @id @default(cuid())
   name  String @unique
   value Int
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  sequence    BigInt           @default(dbgenerated())
+  recipientId String
+  recipient   User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actor       User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  cardId      String
+  card        Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  message     String           @db.Text
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([recipientId, createdAt])
+  @@index([recipientId, sequence])
+  @@index([recipientId, readAt, createdAt])
+  @@index([cardId])
+}
+
+model NotificationCursor {
+  recipientId String @id
+  recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  revision    BigInt
+}
+
+model ColumnSubscription {
+  columnId  String
+  column    Column   @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([columnId, userId])
+  @@index([userId])
 }

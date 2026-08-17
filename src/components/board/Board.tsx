@@ -9,15 +9,17 @@ import { CardView } from "./Card";
 import { columnSwatch } from "./colors";
 import { applyView, canReorder, type ViewState } from "./view";
 import { toast } from "sonner";
+import type { Subscriber } from "./column-subscribers";
 
 function findCard(cols: ColumnData[], id: string) {
   for (const c of cols) { const card = c.cards.find((x) => x.id === id); if (card) return { col: c, card }; }
   return null;
 }
 
-export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, onArchive, onDraggingChange }: {
+export function Board({ columns, setColumns, users, view, currentUser, onAdd, onOpen, onArchive, onDraggingChange }: {
   columns: ColumnData[];
   setColumns: (c: ColumnData[]) => void;
+  users: Subscriber[];
   view: ViewState;
   currentUser?: { id: string; name: string; avatarUrl: string | null } | null;
   onAdd: (columnId: string) => void;
@@ -169,7 +171,7 @@ export function Board({ columns, setColumns, view, currentUser, onAdd, onOpen, o
           className="min-h-0 flex-1 overflow-auto px-10 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex w-max items-start gap-3.5">
-            {display.map((c) => <Column key={c.id} column={c} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={dragDisabled} />)}
+            {display.map((c) => <Column key={c.id} column={c} users={users} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={dragDisabled} />)}
           </div>
         </div>
 

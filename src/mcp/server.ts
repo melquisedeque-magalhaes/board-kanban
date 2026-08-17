@@ -99,10 +99,11 @@ export function buildMcpServer() {
         parentId: z.string().nullable().optional().describe("id do card pai (null desvincula)"),
         blocker: blocker.nullable().optional().describe("Impedimento/Aviso/Ajustes a Fazer (null limpa)"),
         blockerReason: z.string().nullable().optional().describe("Motivo (null limpa)"),
+        actor: z.string().optional().describe("Quem executa a alteração — id, nome ou e-mail"),
       },
     },
-    async ({ id, ...rest }) =>
-      json(await cards.updateCard(id, rest as cards.UpdateCardInput)),
+    async ({ id, actor, ...rest }) =>
+      json(await cards.updateCard(id, rest as cards.UpdateCardInput, actor)),
   );
 
   s.registerTool(

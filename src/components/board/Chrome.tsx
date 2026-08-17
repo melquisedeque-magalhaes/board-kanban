@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ProfileDialog } from "./ProfileDialog";
+import { NotificationCenter } from "./NotificationCenter";
 import { avatarColor, initials } from "./colors";
 import { activeFilterCount, type ViewState, type SortMode } from "./view";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -32,11 +33,13 @@ function UserAvatar({ name, url, className }: { name: string; url?: string | nul
   );
 }
 
-export function Chrome({ view, setView, users, online, onNew, onOpenArchived }: {
+export function Chrome({ view, setView, users, online, openCardId, onOpenCard, onNew, onOpenArchived }: {
   view: ViewState;
   setView: (v: ViewState) => void;
   users: UserLite[];
   online: UserLite[];
+  openCardId: string | null;
+  onOpenCard: (id: string) => void;
   onNew: () => void;
   onOpenArchived: () => void;
 }) {
@@ -105,6 +108,7 @@ export function Chrome({ view, setView, users, online, onNew, onOpenArchived }: 
           <Button asChild variant="outline" size="sm">
             <NextLink href="/relatorios"><BarChart3 data-icon="inline-start" /> Relatórios</NextLink>
           </Button>
+          <NotificationCenter openCardId={openCardId} onOpenCard={onOpenCard} />
           <ThemeToggle />
           <UserButton>
             <UserButton.MenuItems>

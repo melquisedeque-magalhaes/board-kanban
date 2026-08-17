@@ -122,12 +122,15 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         setView={setView}
         users={users}
         online={online}
+        openCardId={openCard}
+        onOpenCard={setOpenCard}
         onNew={() => setCreateCol(columns[0]?.id ?? null)}
         onOpenArchived={() => setArchivedOpen(true)}
       />
       <Board
         columns={columns}
         setColumns={setColumns}
+        users={users}
         view={view}
         currentUser={currentUser}
         onAdd={setCreateCol}
