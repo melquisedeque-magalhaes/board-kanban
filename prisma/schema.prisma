@@ -115,6 +115,7 @@ model User {
   comments              Comment[]
   receivedNotifications Notification[]       @relation("NotificationRecipient")
   notificationActions   Notification[]       @relation("NotificationActor")
+  notificationCursor    NotificationCursor?
   columnSubscriptions   ColumnSubscription[]
 }
 
@@ -144,7 +145,7 @@ model Counter {
 
 model Notification {
   id          String           @id @default(cuid())
-  sequence    BigInt           @default(autoincrement())
+  sequence    BigInt           @default(dbgenerated())
   recipientId String
   recipient   User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actorId     String?
@@ -160,6 +161,12 @@ model Notification {
   @@index([recipientId, sequence])
   @@index([recipientId, readAt, createdAt])
   @@index([cardId])
+}
+
+model NotificationCursor {
+  recipientId String @id
+  recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  revision    BigInt
 }
 
 model ColumnSubscription {

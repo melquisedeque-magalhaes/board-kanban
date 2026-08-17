@@ -173,11 +173,34 @@ describe("notification batch coordinator", () => {
     const coordinator = createNotificationBatchCoordinator();
     await coordinator.process(version("n2", 3), vi.fn());
 
-    await expect(coordinator.process(version("n1", 2), loadPage)).resolves.toEqual({
+    await expect(coordinator.process(
+      version("n1", 2, "2026-08-17T12:00:00.000Z", "2"),
+      loadPage,
+    )).resolves.toEqual({
       changed: true,
       fresh: [],
     });
     expect(loadPage).not.toHaveBeenCalled();
+  });
+
+  it("mantém a revisão após apagar todas as notificações e detecta a próxima criação", async () => {
+    const coordinator = createNotificationBatchCoordinator();
+    await coordinator.process(version("n3", 1, "2026-08-17T12:00:03.000Z", "3"), vi.fn());
+
+    await expect(coordinator.process({
+      version: "3-0-0",
+      unreadCount: 0,
+      totalCount: 0,
+      latestId: null,
+      latestCreatedAt: null,
+      latestSequence: "3",
+    }, vi.fn())).resolves.toEqual({ changed: true, fresh: [] });
+
+    const next = item("n4", "c4", "2026-08-17T12:00:04.000Z", "4");
+    await expect(coordinator.process(
+      version("n4", 1, next.createdAt, "4"),
+      () => Promise.resolve({ items: [next], nextCursor: null, unreadCount: 1 }),
+    )).resolves.toEqual({ changed: true, fresh: [next] });
   });
 
   it("detecta uma criação posterior a uma queda sem repetir itens anteriores", async () => {

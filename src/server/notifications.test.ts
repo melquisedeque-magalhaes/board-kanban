@@ -5,6 +5,7 @@ const dbMock = vi.hoisted(() => ({
     findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(),
     updateMany: vi.fn(), createMany: vi.fn(),
   },
+  notificationCursor: { findUnique: vi.fn() },
   columnSubscription: {
     findMany: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn(),
   },
@@ -67,8 +68,8 @@ describe("emissores transacionais", () => {
 
     expect(tx.notification.createMany).toHaveBeenCalledWith({
       data: [
-        { recipientId: "u3", actorId: "u1", cardId: "c1", type: "COMMENT_ADDED", message: "Novo comentário em TI-258 · Notificações" },
         { recipientId: "u2", actorId: "u1", cardId: "c1", type: "COMMENT_ADDED", message: "Novo comentário em TI-258 · Notificações" },
+        { recipientId: "u3", actorId: "u1", cardId: "c1", type: "COMMENT_ADDED", message: "Novo comentário em TI-258 · Notificações" },
       ],
     });
   });
@@ -83,8 +84,8 @@ describe("emissores transacionais", () => {
 
     expect(tx.notification.createMany).toHaveBeenCalledWith({
       data: [
-        { recipientId: "u3", actorId: "u1", cardId: "c1", type, message },
         { recipientId: "u2", actorId: "u1", cardId: "c1", type, message },
+        { recipientId: "u3", actorId: "u1", cardId: "c1", type, message },
       ],
     });
   });
@@ -204,9 +205,10 @@ describe("histórico e leitura", () => {
   it("calcula a versão por última notificação e contagens", async () => {
     dbMock.notification.findFirst.mockResolvedValue({
       id: "n9",
-      sequence: BigInt(9),
+      sequence: BigInt(8),
       createdAt: new Date("2026-08-17T12:00:09.000Z"),
     });
+    dbMock.notificationCursor.findUnique.mockResolvedValue({ revision: BigInt(9) });
     dbMock.notification.count.mockResolvedValueOnce(7).mockResolvedValueOnce(2);
 
     await expect(notificationVersion("u1")).resolves.toEqual({
@@ -216,6 +218,26 @@ describe("histórico e leitura", () => {
       latestId: "n9",
       latestCreatedAt: "2026-08-17T12:00:09.000Z",
       latestSequence: "9",
+    });
+    expect(dbMock.notificationCursor.findUnique).toHaveBeenCalledWith({
+      where: { recipientId: "u1" },
+      select: { revision: true },
+    });
+  });
+
+  it("não regride a revisão quando a última linha está à frente do snapshot do cursor", async () => {
+    dbMock.notification.findFirst.mockResolvedValue({
+      id: "n10",
+      sequence: BigInt(10),
+      createdAt: new Date("2026-08-17T12:00:10.000Z"),
+    });
+    dbMock.notificationCursor.findUnique.mockResolvedValue({ revision: BigInt(9) });
+    dbMock.notification.count.mockResolvedValueOnce(8).mockResolvedValueOnce(3);
+
+    await expect(notificationVersion("u1")).resolves.toMatchObject({
+      version: "10-8-3",
+      latestId: "n10",
+      latestSequence: "10",
     });
   });
 

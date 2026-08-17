@@ -71,6 +71,13 @@ function cardRecipients(card: NotifiableCard) {
   ];
 }
 
+async function persistNotificationRows(tx: Tx, rows: NotificationRow[]) {
+  if (!rows.length) return;
+  await tx.notification.createMany({
+    data: [...rows].sort((left, right) => left.recipientId.localeCompare(right.recipientId)),
+  });
+}
+
 export async function notifyComment(tx: Tx, cardId: string, actorId?: string | null) {
   const card = await findNotifiableCard(tx, cardId);
   const rows = buildNotificationRows({
@@ -80,7 +87,7 @@ export async function notifyComment(tx: Tx, cardId: string, actorId?: string | n
     message: notificationMessage.comment(cardRef(card)),
     recipientIds: cardRecipients(card),
   });
-  if (rows.length) await tx.notification.createMany({ data: rows });
+  await persistNotificationRows(tx, rows);
 }
 
 export async function notifyBlockerChange(
@@ -109,7 +116,7 @@ export async function notifyBlockerChange(
     message,
     recipientIds: cardRecipients(card),
   });
-  if (rows.length) await tx.notification.createMany({ data: rows });
+  await persistNotificationRows(tx, rows);
 }
 
 export async function notifyCardMoved(
@@ -149,7 +156,7 @@ export async function notifyCardMoved(
       .filter((userId) => !readyRecipientIds.includes(userId)),
   });
   const rows = [...readyRows, ...enteredRows];
-  if (rows.length) await tx.notification.createMany({ data: rows });
+  await persistNotificationRows(tx, rows);
 }
 
 export async function listNotifications(recipientId: string, input: { cursor?: string; limit: number }) {
@@ -180,17 +187,28 @@ export async function notificationVersion(recipientId: string): Promise<{
   latestCreatedAt: string | null;
   latestSequence: string | null;
 }> {
-  const [latest, totalCount, unreadCount] = await Promise.all([
+  const [latest, cursor, totalCount, unreadCount] = await Promise.all([
     db.notification.findFirst({
       where: { recipientId },
       orderBy: { sequence: "desc" },
       select: { id: true, sequence: true, createdAt: true },
     }),
+    db.notificationCursor.findUnique({
+      where: { recipientId },
+      select: { revision: true },
+    }),
     db.notification.count({ where: { recipientId } }),
     db.notification.count({ where: { recipientId, readAt: null } }),
   ]);
   const latestCreatedAt = latest?.createdAt.toISOString() ?? null;
-  const latestSequence = latest?.sequence.toString() ?? null;
+  const cursorRevision = cursor?.revision ?? null;
+  const notificationRevision = latest?.sequence ?? null;
+  const visibleRevision = cursorRevision == null
+    ? notificationRevision
+    : notificationRevision == null || cursorRevision > notificationRevision
+      ? cursorRevision
+      : notificationRevision;
+  const latestSequence = visibleRevision?.toString() ?? null;
   return {
     version: `${latestSequence ?? "none"}-${totalCount}-${unreadCount}`,
     unreadCount,
