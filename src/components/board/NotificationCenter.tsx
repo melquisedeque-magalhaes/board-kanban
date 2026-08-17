@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ export function NotificationCenter({
   const previousVersion = useRef<NotificationVersion | null>(null);
   const openCardIdRef = useRef(openCardId);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     openCardIdRef.current = openCardId;
   }, [openCardId]);
 
