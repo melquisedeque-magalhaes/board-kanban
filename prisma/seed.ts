@@ -13,6 +13,9 @@ const COLUMNS = [
 // Seed só de ESTRUTURA (board + colunas). Sem dados mocados (cards/users/labels).
 // Idempotente e seguro: NÃO apaga nada — se o board já existe, não recria.
 async function main() {
+  const agentUser = await db.user.findFirst({ where: { name: "fusion-agents" } });
+  if (!agentUser) await db.user.create({ data: { name: "fusion-agents" } });
+
   const existing = await db.board.findFirst();
   if (existing) {
     console.log("seed: board já existe, nada a fazer");

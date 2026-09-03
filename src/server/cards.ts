@@ -4,6 +4,7 @@ import type {
   CardFilter, CreateCardInput, UpdateCardInput, Blocker,
 } from "./types";
 import { notifyBlockerChange, notifyCardMoved, notifyComment } from "./notifications";
+import { dispatchCardCreated } from "./card-created-trigger";
 
 // Bloqueios que impedem o card de mudar de coluna (reorder na mesma coluna é livre).
 const BLOCKING_MOVE: Blocker[] = ["IMPEDIMENTO", "AJUSTES"];
@@ -255,7 +256,7 @@ export async function createCard(input: CreateCardInput) {
   const labelIds = await resolveLabelIds(input.labels ?? []);
   const code = input.code?.trim() ? input.code.trim() : await nextCardCode();
   const requestedById = await resolveUserId(input.requestedBy);
-  return db.card.create({
+  const card = await db.card.create({
     data: {
       columnId, title: input.title, details: input.details ?? input.description,
       documentation: input.documentation,
@@ -271,6 +272,8 @@ export async function createCard(input: CreateCardInput) {
     },
     include: cardInclude,
   });
+  await dispatchCardCreated(card);
+  return card;
 }
 
 export async function updateCard(id: string, input: UpdateCardInput, actor?: string) {

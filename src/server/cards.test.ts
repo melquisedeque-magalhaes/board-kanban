@@ -25,6 +25,8 @@ vi.mock("./notifications", () => ({
   notifyBlockerChange: notificationMock.blocker,
   notifyComment: notificationMock.comment,
 }));
+const triggerMock = vi.hoisted(() => ({ dispatchCardCreated: vi.fn() }));
+vi.mock("./card-created-trigger", () => triggerMock);
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
@@ -217,6 +219,7 @@ describe("createCard subtask/blocker", () => {
         parentId: "parent1", blocker: "IMPEDIMENTO", blockerReason: "esperando API",
       }),
     }));
+    expect(triggerMock.dispatchCardCreated).toHaveBeenCalledWith({ id: "new1" });
   });
 });
 
