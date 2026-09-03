@@ -121,6 +121,18 @@ model User {
   columnSubscriptions   ColumnSubscription[]
 }
 
+model WorkflowTrigger {
+  id          String   @id @default(cuid())
+  name        String
+  event       String
+  webhookUrl  String   @db.Text
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([event, enabled])
+}
+
 model Label {
   id    String @id @default(cuid())
   name  String

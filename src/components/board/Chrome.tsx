@@ -233,7 +233,7 @@ export function Chrome({ view, setView, users, online, openCardId, onOpenCard, o
             </PopoverContent>
           </Popover>
 
-          <Button variant="ghost" size="icon" title="Automações"><Zap /></Button>
+          <Button asChild variant="ghost" size="icon" title="Automações"><NextLink href="/triggers"><Zap /></NextLink></Button>
           <Button variant="ghost" size="icon" title="Arquivados" onClick={onOpenArchived}><Archive /></Button>
 
           {/* Busca */}
