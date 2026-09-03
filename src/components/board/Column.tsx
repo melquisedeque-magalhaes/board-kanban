@@ -135,58 +135,64 @@ export function Column({
           <>
             <ColumnChip column={column} />
             <span className="text-xs text-muted-foreground">{column.cards.length}</span>
+          </>
+        )}
+
+        {/* Ações da coluna encostadas na direita: inscritos e menu num só
+            grupo, para os ícones não flutuarem no meio do header. */}
+        {!renaming && (
+          <div className="ml-auto flex items-center gap-0.5">
             <ColumnSubscribersPopover
               columnId={column.id}
               users={users}
               initialCount={column._count?.subscriptions ?? 0}
             />
-          </>
-        )}
-
-        {columnActions && !renaming && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label={`Ações da coluna ${column.name}`}
-                className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <MoreHorizontal className="size-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onSelect={startRename}>
-                <Pencil className="size-4" /> Renomear
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-                <Palette className="size-3.5" /> Cor da coluna
-              </DropdownMenuLabel>
-              <div className="grid grid-cols-4 gap-1 px-2 pb-1.5">
-                {COLUMN_PALETTE.map((c) => (
-                  <button
-                    key={c.value}
-                    title={c.label}
-                    aria-label={`Cor ${c.label}`}
-                    onClick={() => columnActions.onRecolor(column.id, c.value)}
-                    className={
-                      "h-6 rounded-md border-2 " +
-                      (column.color === c.value ? "border-foreground" : "border-transparent")
-                    }
-                    style={{ background: c.value }}
-                  />
-                ))}
-              </div>
-              {column.color && (
-                <DropdownMenuItem onSelect={() => columnActions.onRecolor(column.id, null)}>
-                  Usar cor padrão
+            {columnActions && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label={`Ações da coluna ${column.name}`}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <MoreHorizontal className="size-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onSelect={startRename}>
+                  <Pencil className="size-4" /> Renomear
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmingDelete(true)}>
-                <Trash2 className="size-4" /> Excluir coluna
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                  <Palette className="size-3.5" /> Cor da coluna
+                </DropdownMenuLabel>
+                <div className="grid grid-cols-4 gap-1 px-2 pb-1.5">
+                  {COLUMN_PALETTE.map((c) => (
+                    <button
+                      key={c.value}
+                      title={c.label}
+                      aria-label={`Cor ${c.label}`}
+                      onClick={() => columnActions.onRecolor(column.id, c.value)}
+                      className={
+                        "h-6 rounded-md border-2 " +
+                        (column.color === c.value ? "border-foreground" : "border-transparent")
+                      }
+                      style={{ background: c.value }}
+                    />
+                  ))}
+                </div>
+                {column.color && (
+                  <DropdownMenuItem onSelect={() => columnActions.onRecolor(column.id, null)}>
+                    Usar cor padrão
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={() => setConfirmingDelete(true)}>
+                  <Trash2 className="size-4" /> Excluir coluna
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            )}
+          </div>
         )}
       </div>
 
