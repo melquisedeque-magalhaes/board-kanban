@@ -1,13 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const dbMock = vi.hoisted(() => ({ workflowTrigger: { findMany: vi.fn().mockResolvedValue([]) } }));
+vi.mock("@/lib/db", () => ({ db: dbMock }));
+
 import { dispatchCardCreated } from "./card-created-trigger";
 
 const card = {
   id: "card1",
-  code: "TI-900",
-  title: "Novo card",
-  details: "Detalhes",
-  columnId: "col1",
-  createdAt: new Date("2026-09-03T22:00:00.000Z"),
 };
 
 describe("dispatchCardCreated", () => {
@@ -24,14 +23,14 @@ describe("dispatchCardCreated", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("envia o evento e o ID do card para o webhook configurado", async () => {
-    vi.stubEnv("FUSION_CARD_CREATED_WEBHOOK_URL", "https://fusion.test/api/hooks/token");
+  it("envia o evento e o ID do card para cada trigger ativo", async () => {
+    dbMock.workflowTrigger.findMany.mockResolvedValue([{ webhookUrl: "https://fusion-agents-dev.brq.com/api/hooks/token" }]);
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 202 }));
 
     await dispatchCardCreated(card);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://fusion.test/api/hooks/token",
+      "https://fusion-agents-dev.brq.com/api/hooks/token",
       expect.objectContaining({
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -39,21 +38,13 @@ describe("dispatchCardCreated", () => {
           event: "card.created",
           eventId: "card.created:card1",
           card: "card1",
-          cardData: {
-            id: "card1",
-            code: "TI-900",
-            title: "Novo card",
-            details: "Detalhes",
-            columnId: "col1",
-            createdAt: "2026-09-03T22:00:00.000Z",
-          },
         }),
       }),
     );
   });
 
   it("não falha a operação quando o webhook retorna erro", async () => {
-    vi.stubEnv("FUSION_CARD_CREATED_WEBHOOK_URL", "https://fusion.test/api/hooks/token");
+    dbMock.workflowTrigger.findMany.mockResolvedValue([{ webhookUrl: "https://fusion-agents-dev.brq.com/api/hooks/token" }]);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 500 }));
     const errorMock = vi.spyOn(console, "error").mockImplementation(() => undefined);
 

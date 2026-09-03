@@ -135,7 +135,6 @@ PostgreSQL
 |----------|-----------|---------|
 | `DATABASE_URL` | String de conexão PostgreSQL | `postgresql://user:pass@localhost:5432/kanban?schema=public` |
 | `MCP_TOKEN` | Token Bearer para autenticação MCP | `abc123def456...` (gerar com `openssl rand -hex 24`) |
-| `FUSION_CARD_CREATED_WEBHOOK_URL` | URL do trigger do Fusion Agents chamado após criação de card | `https://host/api/hooks/<token>` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Chave pública do Clerk | `pk_test_...` (dashboard Clerk) |
 | `CLERK_SECRET_KEY` | Chave secreta do Clerk | `sk_test_...` (dashboard Clerk) |
 
