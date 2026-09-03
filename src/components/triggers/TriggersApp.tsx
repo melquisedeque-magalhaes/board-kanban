@@ -19,7 +19,7 @@ export function TriggersApp() {
   async function load() {
     const res = await fetch("/api/triggers");
     if (res.ok) setTriggers(await res.json());
-    else toast.error(res.status === 403 ? "Acesso restrito a administradores" : "Falha ao carregar triggers");
+    else toast.error(res.status === 403 ? "Acesso restrito a usuários autenticados" : "Falha ao carregar triggers");
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
