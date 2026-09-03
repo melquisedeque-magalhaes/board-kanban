@@ -108,6 +108,9 @@ export function Chrome({ view, setView, users, online, openCardId, onOpenCard, o
           <Button asChild variant="outline" size="sm">
             <NextLink href="/relatorios"><BarChart3 data-icon="inline-start" /> Relatórios</NextLink>
           </Button>
+          <Button id="trigger-menu" asChild variant="outline" size="sm">
+            <NextLink href="/triggers"><Zap data-icon="inline-start" /> Triggers</NextLink>
+          </Button>
           <NotificationCenter openCardId={openCardId} onOpenCard={onOpenCard} />
           <ThemeToggle />
           <UserButton>
@@ -233,7 +236,6 @@ export function Chrome({ view, setView, users, online, openCardId, onOpenCard, o
             </PopoverContent>
           </Popover>
 
-          <Button asChild variant="ghost" size="icon" title="Automações"><NextLink href="/triggers"><Zap /></NextLink></Button>
           <Button variant="ghost" size="icon" title="Arquivados" onClick={onOpenArchived}><Archive /></Button>
 
           {/* Busca */}
