@@ -75,6 +75,8 @@ model Card {
   children      Card[]         @relation("Subtasks")
   blocker       Blocker?
   blockerReason String?        @db.Text
+  // Card em operação por um agente. Só o MCP/UI liga explicitamente.
+  bot           Boolean        @default(false)
   assignees     User[]         @relation("CardAssignees")
   labels        Label[]        @relation("CardLabels")
   comments      Comment[]

@@ -8,7 +8,7 @@ const card = (over: Partial<ColumnData["cards"][number]>) => ({
 }) as ColumnData["cards"][number];
 
 const cols: ColumnData[] = [{
-  id: "c1", name: "A Fazer", cards: [
+  id: "c1", name: "A Fazer", position: 1000, cards: [
     card({ id: "1", title: "Implementar Tool Search", code: "TI-1", priority: "ALTA", assignees: [{ id: "u1", name: "MS" }] }),
     card({ id: "2", title: "Bug no login", priority: "BAIXA" }),
     card({ id: "3", title: "Ajuste CSS", priority: "MEDIA" }),
@@ -54,7 +54,7 @@ describe("applyView", () => {
 describe("agrupamento fixo por prioridade (default global)", () => {
   it("o modo manual (default) sempre agrupa por prioridade, com position como desempate", () => {
     const c: ColumnData[] = [{
-      id: "c1", name: "A Fazer", cards: [
+      id: "c1", name: "A Fazer", position: 1000, cards: [
         card({ id: "a", priority: "BAIXA", position: 1 }),
         card({ id: "b", priority: "CRITICA", position: 5 }),
         card({ id: "c", priority: "ALTA", position: 2 }),
@@ -69,7 +69,7 @@ describe("agrupamento fixo por prioridade (default global)", () => {
 
   it("CRÍTICA fica acima de ALTA no sort explícito", () => {
     const c: ColumnData[] = [{
-      id: "c1", name: "A Fazer", cards: [
+      id: "c1", name: "A Fazer", position: 1000, cards: [
         card({ id: "alta", priority: "ALTA" }),
         card({ id: "crit", priority: "CRITICA" }),
       ],

@@ -4,6 +4,7 @@ const updateCard = vi.fn().mockResolvedValue({ id: "card1" });
 const moveCard = vi.fn().mockResolvedValue({ id: "card1" });
 const addComment = vi.fn().mockResolvedValue({ id: "comment1" });
 const resolveUserIds = vi.fn().mockResolvedValue(["u1"]);
+const setCardBot = vi.fn().mockResolvedValue({ id: "card1", bot: true });
 vi.mock("@/server/cards", () => ({
   listColumns: vi.fn().mockResolvedValue([{ id: "c1", name: "A Fazer" }]),
   listCards: vi.fn(),
@@ -17,13 +18,23 @@ vi.mock("@/server/cards", () => ({
   assignCard: vi.fn(),
   unassignCard: vi.fn(),
   moveCard: (...args: unknown[]) => moveCard(...args),
+  setCardBot: (...args: unknown[]) => setCardBot(...args),
   addComment: (...args: unknown[]) => addComment(...args),
   updateComment: vi.fn(),
+  deleteComment: vi.fn(),
+  getCardByCode: vi.fn(),
+  normalizeCardCode: (code: string) => code,
   addAttachment: vi.fn(),
   listAttachments: vi.fn(),
   listUsers: vi.fn(),
   listLabels: vi.fn(),
   resolveUserIds: (...args: unknown[]) => resolveUserIds(...args),
+}));
+vi.mock("@/server/columns", () => ({
+  createColumn: vi.fn(),
+  updateColumn: vi.fn(),
+  moveColumn: vi.fn(),
+  deleteColumn: vi.fn(),
 }));
 import { buildMcpServer } from "./server";
 
@@ -33,16 +44,18 @@ describe("buildMcpServer", () => {
     expect(s).toBeTruthy();
   });
 
-  it("registra exatamente as 18 tools esperadas", () => {
+  it("registra exatamente as 25 tools esperadas", () => {
     const s = buildMcpServer();
     const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
       ._registeredTools;
     expect(Object.keys(registered).sort()).toEqual(
       [
         "add_attachment", "add_comment", "archive_card", "assign_card", "create_card",
-        "get_card", "get_delivery_report", "list_archived_cards", "list_attachments", "list_cards",
-        "list_columns", "list_labels", "list_users", "move_card", "unarchive_card",
-        "unassign_card", "update_card", "update_comment",
+        "create_column", "delete_column", "delete_comment", "get_card", "get_card_by_code",
+        "get_delivery_report", "list_archived_cards", "list_attachments", "list_cards",
+        "list_columns", "list_labels", "list_users", "move_card", "move_column",
+        "set_card_bot", "unarchive_card", "unassign_card", "update_card", "update_column",
+        "update_comment",
       ].sort(),
     );
   });
@@ -54,7 +67,7 @@ describe("buildMcpServer", () => {
     return tools.create_card.handler;
   };
 
-  const callback = (name: "update_card" | "move_card" | "add_comment") => {
+  const callback = (name: "update_card" | "move_card" | "add_comment" | "set_card_bot") => {
     const s = buildMcpServer();
     const tools = (s as unknown as { _registeredTools: Record<string, Tool> })._registeredTools;
     return tools[name].handler;
@@ -95,5 +108,26 @@ describe("buildMcpServer", () => {
 
     expect(resolveUserIds).toHaveBeenCalledWith(["Giovanni"]);
     expect(addComment).toHaveBeenCalledWith("card1", "Comentário", "u1");
+  });
+
+  it("set_card_bot liga e desliga a marca de robô", async () => {
+    await callback("set_card_bot")({ id: "card1", bot: true });
+    expect(setCardBot).toHaveBeenCalledWith("card1", true);
+
+    await callback("set_card_bot")({ id: "card1", bot: false });
+    expect(setCardBot).toHaveBeenCalledWith("card1", false);
+  });
+
+  it("nenhuma outra tool liga a marca de robô por conta própria", async () => {
+    // Este arquivo não limpa os mocks entre casos; o anterior chama setCardBot.
+    setCardBot.mockClear();
+    createCard.mockClear();
+
+    await callback("move_card")({ id: "card1", columnId: "c2", actor: "Giovanni" });
+    await callback("add_comment")({ cardId: "card1", body: "x" });
+    await createCallback()({ columnName: "A Fazer", title: "x" });
+
+    expect(setCardBot).not.toHaveBeenCalled();
+    expect(createCard).toHaveBeenCalledWith(expect.not.objectContaining({ bot: true }));
   });
 });

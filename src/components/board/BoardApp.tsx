@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Board } from "./Board";
@@ -115,6 +115,45 @@ export function BoardApp({ initialColumns, users, currentUser }: {
     if (ok) toast.success("Card arquivado", { action: { label: "Desfazer", onClick: () => setArchived(id, false) } });
   }, [openCard, setArchived]);
 
+  // Mutação de coluna: em erro mostra a mensagem do servidor (ela explica o
+  // motivo — nome duplicado, coluna com card) e refaz o fetch p/ desfazer o
+  // estado otimista do drag.
+  const mutateColumn = useCallback(async (
+    input: RequestInfo, init: RequestInit, fallback: string,
+  ) => {
+    const res = await fetch(input, init);
+    if (!res.ok) {
+      toast.error((await res.text()) || fallback);
+      refetch();
+      return false;
+    }
+    refetch();
+    return true;
+  }, [refetch]);
+
+  const addColumn = useCallback(async (name: string) => {
+    await mutateColumn("/api/columns", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    }, "Falha ao criar coluna");
+  }, [mutateColumn]);
+
+  const patchColumn = useCallback((id: string, data: Record<string, unknown>, fallback: string) =>
+    mutateColumn(`/api/columns/${id}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    }, fallback), [mutateColumn]);
+
+  const columnActions = useMemo(() => ({
+    onRename: (id: string, name: string) => { patchColumn(id, { name }, "Falha ao renomear coluna"); },
+    onRecolor: (id: string, color: string | null) => { patchColumn(id, { color }, "Falha ao trocar a cor"); },
+    onMove: (id: string, position: number) => { patchColumn(id, { position }, "Falha ao mover coluna"); },
+    onDelete: async (id: string) => {
+      const ok = await mutateColumn(`/api/columns/${id}`, { method: "DELETE" }, "Falha ao excluir coluna");
+      if (ok) toast.success("Coluna excluída");
+    },
+  }), [mutateColumn, patchColumn]);
+
   return (
     <>
       <Chrome
@@ -137,6 +176,8 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         onOpen={setOpenCard}
         onArchive={archiveCard}
         onDraggingChange={setDragging}
+        columnActions={columnActions}
+        onAddColumn={addColumn}
       />
       {createCol && (
         <CardDialog

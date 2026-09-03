@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { del } from "@vercel/blob";
 import { deleteAttachment, getAttachment } from "@/server/cards";
+import { purgeBlobs } from "@/server/blobs";
 import { requireUser } from "@/server/auth-guard";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string;
   const att = await getAttachment(attId);
   if (!att || att.cardId !== id) return new Response("Not found", { status: 404 });
 
-  // Remove do Blob (best-effort) e do DB.
-  if (process.env.BLOB_READ_WRITE_TOKEN && att.url.includes("blob.vercel-storage.com")) {
-    try { await del(att.url); } catch { /* arquivo já removido ou URL externa */ }
-  }
+  await purgeBlobs([att.url]);
   await deleteAttachment(attId);
   return NextResponse.json({ ok: true });
 }

@@ -156,8 +156,8 @@ O board e a REST API ficam **atrás de login** (Clerk). O `/api/mcp` **NÃO** �
 ### Entidades Principais
 
 - **Board**: Agrupamento top-level de colunas
-- **Column**: Coluna do kanban com cards
-- **Card**: Tarefa/item com título, descrição, prioridade, assignees, labels e comentários
+- **Column**: Coluna do kanban com cards, cor (`color`, hex) e ordem (`position`)
+- **Card**: Tarefa/item com título, descrição, prioridade, assignees, labels, comentários e a marca `bot` (em operação por um agente)
 - **User**: Usuário que pode ser assignee ou autor de comentários
 - **Label**: Tag para categorizar cards
 - **Comment**: Comentário em um card
@@ -181,12 +181,20 @@ Authorization: Bearer <MCP_TOKEN>
 | Ferramenta | Descrição |
 |-----------|-----------|
 | `list_columns` | Lista todas as colunas com seus cards |
+| `create_column` | Cria uma coluna no fim do board (nome + cor hex) |
+| `update_column` | Renomeia e/ou troca a cor de uma coluna |
+| `move_column` | Reordena a coluna (`index` 0-based) |
+| `delete_column` | Exclui a coluna — só se estiver vazia |
 | `list_cards` | Lista cards filtrando por coluna, assignee ou prioridade |
-| `get_card` | Obtém detalhes completos de um card (com comentários) |
+| `get_card` | Obtém detalhes completos de um card por `id` (com comentários) |
+| `get_card_by_code` | Obtém o card pela **chave** (`TI-282`), com comentários |
 | `create_card` | Cria um novo card em uma coluna |
 | `update_card` | Atualiza campos de um card |
 | `move_card` | Move um card para outra coluna/posição |
+| `set_card_bot` | Marca/desmarca o card como em operação por um robô |
 | `add_comment` | Adiciona um comentário a um card |
+| `update_comment` | Edita o texto de um comentário |
+| `delete_comment` | Exclui um comentário e os anexos dele (irreversível) |
 | `list_users` | Lista todos os usuários |
 | `list_labels` | Lista todas as labels |
 
@@ -335,7 +343,19 @@ board-kanban/
 
 ```
 
-### Adicionar uma Nova Coluna/Campo
+### Gerenciar colunas do board
+
+As colunas são editáveis em runtime — não é preciso migração nem seed. Pela UI,
+o menu do título de cada coluna renomeia, troca a cor e exclui, o grip ao lado
+reordena por drag, e o botão no fim do board adiciona coluna. Pelo MCP/REST:
+`create_column`, `update_column`, `move_column` e `delete_column`
+(`POST /api/columns`, `PATCH|DELETE /api/columns/:id`).
+
+Uma coluna só é excluída quando está **vazia**: `Card.columnId` tem
+`onDelete: Cascade`, então apagar coluna com card apagaria os cards junto — a
+API recusa com `409` e diz quantos cards (ativos e arquivados) faltam sair.
+
+### Adicionar um Novo Campo
 
 1. **Atualizar schema** (`prisma/schema.prisma`)
 2. **Criar migração**: `npm run db:migrate`

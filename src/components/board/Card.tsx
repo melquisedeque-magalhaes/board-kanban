@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageCircle, MoreHorizontal, Link2, Archive, Ban, TriangleAlert, Wrench, CornerLeftUp, CircleCheck } from "lucide-react";
+import { MessageCircle, MoreHorizontal, Link2, Archive, Ban, TriangleAlert, Wrench, CornerLeftUp, CircleCheck, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import {
 import {
   ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem,
 } from "@/components/ui/context-menu";
-import { PRIORITY, CARD_TYPE, BLOCKER, avatarColor, initials, type Swatch } from "./colors";
+import { PRIORITY, CARD_TYPE, BLOCKER, BOT, avatarColor, initials, type Swatch } from "./colors";
 
 export function cardLink(id: string) {
   return `${typeof window !== "undefined" ? window.location.origin : ""}/?card=${id}`;
@@ -25,6 +25,7 @@ export interface CardData {
   priority?: "CRITICA" | "ALTA" | "MEDIA" | "BAIXA" | null;
   type?: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
   blocker?: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
+  bot?: boolean;
   parent?: { id: string; code: string | null; title: string } | null;
   children?: { id: string; column: { name: string } }[];
   version?: string | null;
@@ -50,6 +51,12 @@ export function CardView({
   const bl = card.blocker ? BLOCKER[card.blocker] : null;
   const kids = card.children ?? [];
   const kidsDone = kids.filter((k) => /(done|conclu)/i.test(k.column.name)).length;
+  // Robô usa outline tracejado em vez de borda: a borda já é do bloqueio, e um
+  // card pode estar em operação E impedido — as duas marcas convivem.
+  const frame: React.CSSProperties = {
+    ...(bl ? { borderColor: bl.border, borderLeftColor: bl.border } : null),
+    ...(card.bot ? { outline: `2px dashed ${BOT.border}`, outlineOffset: "2px" } : null),
+  };
   return (
     <div
       className={
@@ -57,7 +64,7 @@ export function CardView({
         (bl ? "border-l-4 " : "border ") +
         (dragging ? "shadow-lg" : "shadow-sm")
       }
-      style={bl ? { borderColor: bl.border, borderLeftColor: bl.border } : undefined}
+      style={frame}
     >
       {card.parent ? (
         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -118,6 +125,17 @@ export function CardView({
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             v{card.version}
           </span>
+        ) : null}
+        {card.bot ? (
+          <Badge
+            variant="secondary"
+            className="gap-1 border-transparent font-medium"
+            style={{ background: BOT.bg, color: BOT.text }}
+            title="Card em operação por um robô"
+          >
+            <Bot className="size-3" />
+            {BOT.label}
+          </Badge>
         ) : null}
         {bl ? (
           <Badge

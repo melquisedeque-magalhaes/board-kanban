@@ -41,7 +41,7 @@ export interface DeliveryReport {
     unassignedWip: number;
   };
   perPerson: PersonStat[];
-  byColumn: { id: string; name: string; count: number; done: boolean; cancel: boolean }[];
+  byColumn: { id: string; name: string; color: string | null; count: number; done: boolean; cancel: boolean }[];
   byType: BreakdownRow<CardType | "SEM_TIPO">[];
   byPriority: BreakdownRow<Priority | "SEM_PRIORIDADE">[];
   overdueCards: OverdueCard[];
@@ -126,7 +126,7 @@ export async function getDeliveryReport(): Promise<DeliveryReport> {
       .filter((p) => p.delivered + p.wip > 0)
       .sort((a, b) => b.delivered - a.delivered || b.wip - a.wip),
     byColumn: columns.map((c) => ({
-      id: c.id, name: c.name, count: colCount.get(c.id) ?? 0,
+      id: c.id, name: c.name, color: c.color, count: colCount.get(c.id) ?? 0,
       done: doneCol.has(c.id), cancel: cancelCol.has(c.id),
     })),
     byType: typeOrder.map((k) => typeAgg.get(k) ?? { key: k, delivered: 0, wip: 0 })

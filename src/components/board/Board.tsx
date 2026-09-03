@@ -3,11 +3,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, useSensor, useSensors, closestCorners,
+  type CollisionDetection,
 } from "@dnd-kit/core";
-import { Column, type ColumnData } from "./Column";
+import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { Plus } from "lucide-react";
+import {
+  Column, ColumnChip, columnDragId, columnIdFromDragId, isColumnDragId,
+  type ColumnActions, type ColumnData,
+} from "./Column";
 import { CardView } from "./Card";
 import { columnSwatch } from "./colors";
 import { applyView, canReorder, type ViewState } from "./view";
+import { positionBetween } from "@/lib/positions";
 import { toast } from "sonner";
 import type { Subscriber } from "./column-subscribers";
 
@@ -16,7 +23,21 @@ function findCard(cols: ColumnData[], id: string) {
   return null;
 }
 
-export function Board({ columns, setColumns, users, view, currentUser, onAdd, onOpen, onArchive, onDraggingChange }: {
+// Cards e colunas convivem no mesmo DndContext. Arrastando uma coluna, só os
+// droppables de coluna (id prefixado) entram na conta; arrastando um card, só
+// os de card e as áreas de coluna. Sem isso o retângulo da coluna sortable
+// roubaria o drop dos cards.
+const collisionByKind: CollisionDetection = (args) => {
+  const draggingColumn = isColumnDragId(String(args.active.id));
+  return closestCorners({
+    ...args,
+    droppableContainers: args.droppableContainers.filter(
+      (d) => isColumnDragId(String(d.id)) === draggingColumn,
+    ),
+  });
+};
+
+export function Board({ columns, setColumns, users, view, currentUser, onAdd, onOpen, onArchive, onDraggingChange, columnActions, onAddColumn }: {
   columns: ColumnData[];
   setColumns: (c: ColumnData[]) => void;
   users: Subscriber[];
@@ -26,12 +47,18 @@ export function Board({ columns, setColumns, users, view, currentUser, onAdd, on
   onOpen?: (id: string) => void;
   onArchive?: (id: string) => void;
   onDraggingChange?: (dragging: boolean) => void;
+  columnActions?: ColumnActions & { onMove: (id: string, position: number) => void };
+  onAddColumn?: (name: string) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const dragDisabled = !canReorder(view);
   const display = useMemo(() => applyView(columns, view), [columns, view]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const active = activeId ? findCard(columns, activeId) : null;
+  const [newColumn, setNewColumn] = useState<string | null>(null);
+  const active = activeId && !isColumnDragId(activeId) ? findCard(columns, activeId) : null;
+  const activeColumn = activeId && isColumnDragId(activeId)
+    ? columns.find((c) => c.id === columnIdFromDragId(activeId)) ?? null
+    : null;
 
   // Barra de scroll horizontal sticky (sempre visível no rodapé da tela),
   // sincronizada com o container real das colunas. Colunas crescem livres
@@ -87,10 +114,47 @@ export function Board({ columns, setColumns, users, view, currentUser, onAdd, on
     onDraggingChange?.(false);
   }
 
+  // Reorder de coluna: calcula a position entre os vizinhos do destino, na
+  // ordem atual do board (colunas nunca são filtradas pela view).
+  function onColumnDragEnd(activeDragId: string, overDragId: string) {
+    if (!columnActions) return;
+    const id = columnIdFromDragId(activeDragId);
+    const overId = columnIdFromDragId(overDragId);
+    if (id === overId) return;
+    const others = columns.filter((c) => c.id !== id);
+    const at = others.findIndex((c) => c.id === overId);
+    if (at === -1) return;
+    // Arrastando para a direita, o card cai DEPOIS do alvo; para a esquerda, antes.
+    const from = columns.findIndex((c) => c.id === id);
+    const to = columns.findIndex((c) => c.id === overId);
+    const idx = from < to ? at + 1 : at;
+    const position = positionBetween(
+      others[idx - 1]?.position ?? null,
+      others[idx]?.position ?? null,
+    );
+    // Otimista: reordena o cache e persiste. O refetch por versão corrige se falhar.
+    const next = [...others];
+    next.splice(idx, 0, { ...columns[from], position });
+    setColumns(next);
+    columnActions.onMove(id, position);
+  }
+
+  function commitNewColumn() {
+    const name = (newColumn ?? "").trim();
+    setNewColumn(null);
+    if (name) onAddColumn?.(name);
+  }
+
   async function onDragEnd(e: DragEndEvent) {
     endDrag();
     const { active, over } = e;
     if (!over) return;
+
+    if (isColumnDragId(String(active.id))) {
+      onColumnDragEnd(String(active.id), String(over.id));
+      return;
+    }
+
     const from = findCard(columns, String(active.id));
     if (!from) return;
     const overCol = columns.find((c) => c.id === over.id)
@@ -156,7 +220,7 @@ export function Board({ columns, setColumns, users, view, currentUser, onAdd, on
     <DndContext
       id="board"
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionByKind}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragCancel={endDrag}
@@ -171,7 +235,48 @@ export function Board({ columns, setColumns, users, view, currentUser, onAdd, on
           className="min-h-0 flex-1 overflow-auto px-10 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex w-max items-start gap-3.5">
-            {display.map((c) => <Column key={c.id} column={c} users={users} onAdd={onAdd} onOpen={onOpen} onArchive={onArchive} dragDisabled={dragDisabled} />)}
+            <SortableContext
+              items={display.map((c) => columnDragId(c.id))}
+              strategy={horizontalListSortingStrategy}
+            >
+              {display.map((c) => (
+                <Column
+                  key={c.id}
+                  column={c}
+                  users={users}
+                  onAdd={onAdd}
+                  onOpen={onOpen}
+                  onArchive={onArchive}
+                  dragDisabled={dragDisabled}
+                  columnActions={columnActions}
+                  totalCards={columns.find((raw) => raw.id === c.id)?.cards.length}
+                />
+              ))}
+            </SortableContext>
+            {onAddColumn && (
+              newColumn === null ? (
+                <button
+                  onClick={() => setNewColumn("")}
+                  className="flex w-[220px] shrink-0 items-center gap-1.5 rounded-xl border border-dashed px-3 py-2.5 text-left text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Plus className="size-3.5" /> Adicionar coluna
+                </button>
+              ) : (
+                <input
+                  autoFocus
+                  value={newColumn}
+                  placeholder="Nome da coluna"
+                  onChange={(e) => setNewColumn(e.target.value)}
+                  onBlur={() => { commitNewColumn(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); commitNewColumn(); }
+                    if (e.key === "Escape") setNewColumn(null);
+                  }}
+                  aria-label="Nome da nova coluna"
+                  className="w-[220px] shrink-0 rounded-xl border bg-background px-3 py-2.5 text-[13px] outline-none focus:ring-1 focus:ring-ring"
+                />
+              )
+            )}
           </div>
         </div>
 
@@ -187,8 +292,20 @@ export function Board({ columns, setColumns, users, view, currentUser, onAdd, on
         )}
       </div>
       <DragOverlay>
-        {active ? (
-          <CardView card={active.card} statusName={active.col.name} statusSwatch={columnSwatch(active.col.name)} dragging />
+        {activeColumn ? (
+          <div className="flex w-[284px] flex-col gap-1 rounded-xl bg-muted p-2 shadow-lg">
+            <ColumnChip column={activeColumn} />
+            <span className="px-0.5 text-xs text-muted-foreground">
+              {activeColumn.cards.length} card(s)
+            </span>
+          </div>
+        ) : active ? (
+          <CardView
+            card={active.card}
+            statusName={active.col.name}
+            statusSwatch={columnSwatch(active.col.name, active.col.color)}
+            dragging
+          />
         ) : null}
       </DragOverlay>
     </DndContext>

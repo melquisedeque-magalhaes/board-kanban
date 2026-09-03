@@ -7,11 +7,12 @@ import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
   Package, UserPlus, ExternalLink, Ban, TriangleAlert, Wrench, ListTree, CornerLeftUp, BookText,
+  Trash2, Bot,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
 import type { UserLite } from "./Chrome";
-import { avatarColor, initials, columnSwatch, CARD_TYPE, BLOCKER } from "./colors";
+import { avatarColor, initials, columnSwatch, CARD_TYPE, BLOCKER, BOT } from "./colors";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ interface CardDetail {
   type: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
   blocker: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
   blockerReason: string | null;
+  bot: boolean;
   parent: { id: string; code: string | null; title: string } | null;
   children: { id: string; code: string | null; title: string; type: string | null; column: { name: string } }[];
   version: string | null;
@@ -133,6 +135,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
   const [editingDocs, setEditingDocs] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [addingSub, setAddingSub] = useState(false);
   const [subTitle, setSubTitle] = useState("");
@@ -171,6 +174,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
     setComment("");
     setPendingAtts([]);
     setEditingCommentId(null);
+    setDeletingCommentId(null);
     setAddingSub(false);
     setSubTitle("");
     setSubType("SUBTASK");
@@ -222,6 +226,17 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
     });
     if (!res.ok) { toast.error("Falha ao editar comentário"); return; }
     setEditingCommentId(null);
+    qc.setQueryData(["card", cardId], await res.json());
+    onChanged();
+  }
+
+  // Exclusão definitiva: apaga o comentário e os anexos dele. Confirmada
+  // inline (ver o bloco "Excluir este comentário?" na lista) porque não há undo.
+  async function deleteComment(commentId: string) {
+    if (!cardId) return;
+    const res = await fetch(`/api/cards/${cardId}/comments/${commentId}`, { method: "DELETE" });
+    setDeletingCommentId(null);
+    if (!res.ok) { toast.error("Falha ao excluir comentário"); return; }
     qc.setQueryData(["card", cardId], await res.json());
     onChanged();
   }
@@ -348,6 +363,15 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
         ) : (
           <>
             <SheetHeader className="px-8 pb-3 pt-8">
+              {card.bot ? (
+                <Badge
+                  variant="secondary"
+                  className="w-fit gap-1 border-transparent font-medium"
+                  style={{ background: BOT.bg, color: BOT.text }}
+                >
+                  <Bot className="size-3" /> Em operação por um robô
+                </Badge>
+              ) : null}
               {bl ? (
                 <Badge
                   variant="secondary"
@@ -542,7 +566,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                   <SelectContent>
                     <SelectGroup>
                       {columns.map((c) => {
-                        const sw = columnSwatch(c.name);
+                        const sw = columnSwatch(c.name, c.color);
                         return (
                           <SelectItem key={c.id} value={c.id}>
                             <Badge className="border-transparent font-medium" style={{ background: sw.bg, color: sw.text }}>
@@ -591,6 +615,32 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                     />
                   ) : null}
                 </div>
+              </Row>
+
+              {/* Toggle manual: o normal é o agente marcar/desmarcar pelo MCP, mas
+                  card fica preso marcado quando o agente morre no meio — e aí
+                  precisa de alguém para destravar. */}
+              <Row icon={Bot} label="Robô">
+                <button
+                  onClick={() => patch({ bot: !card.bot })}
+                  className={inlineField + " flex items-center gap-2"}
+                >
+                  <span
+                    className={
+                      "relative h-4 w-7 shrink-0 rounded-full transition-colors " +
+                      (card.bot ? "" : "bg-muted-foreground/30")
+                    }
+                    style={card.bot ? { background: BOT.border } : undefined}
+                  >
+                    <span
+                      className={
+                        "absolute top-0.5 size-3 rounded-full bg-white transition-all " +
+                        (card.bot ? "left-3.5" : "left-0.5")
+                      }
+                    />
+                  </span>
+                  {card.bot ? "Em operação" : "Não está em operação"}
+                </button>
               </Row>
 
               <Row icon={Clock} label="Criado em">
@@ -820,15 +870,43 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                           <span className="text-xs font-medium">{c.author?.name ?? "Alguém"}</span>
                           <span className="text-[10px] text-muted-foreground">{fmtDateTime(c.createdAt)}</span>
                           {c.author?.id && currentUser?.id === c.author.id && editingCommentId !== c.id && (
-                            <button
-                              onClick={() => startEditComment(c)}
-                              className="ml-auto hidden rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground group-hover/comment:block"
-                              aria-label="Editar comentário"
-                            >
-                              <Pencil className="size-3" />
-                            </button>
+                            <div className="ml-auto hidden items-center gap-0.5 group-hover/comment:flex">
+                              <button
+                                onClick={() => startEditComment(c)}
+                                className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                aria-label="Editar comentário"
+                              >
+                                <Pencil className="size-3" />
+                              </button>
+                              <button
+                                onClick={() => setDeletingCommentId(c.id)}
+                                className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                aria-label="Excluir comentário"
+                              >
+                                <Trash2 className="size-3" />
+                              </button>
+                            </div>
                           )}
                         </div>
+                        {deletingCommentId === c.id && (
+                          <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-background px-2.5 py-1.5 text-xs">
+                            <span>Excluir este comentário? Não dá para desfazer.</span>
+                            <div className="ml-auto flex gap-1">
+                              <button
+                                onClick={() => setDeletingCommentId(null)}
+                                className="rounded-md px-2 py-0.5 hover:bg-accent"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={() => deleteComment(c.id)}
+                                className="rounded-md bg-destructive px-2 py-0.5 font-medium text-white hover:opacity-90"
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         {editingCommentId === c.id ? (
                           <div className="flex flex-col gap-2">
                             <textarea
