@@ -52,7 +52,7 @@ export function TriggersApp() {
       <CardHeader><CardTitle className="text-base">Novo trigger</CardTitle></CardHeader>
       <CardContent><form onSubmit={create} className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto] md:items-end">
         <label className="grid gap-1 text-xs font-medium">Nome<Input id="trigger-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fase 0 ao criar card" /></label>
-        <label className="grid gap-1 text-xs font-medium">Evento<select id="trigger-event" className="h-8 rounded-lg border border-input bg-background px-2 text-sm" value={event} onChange={(e) => setEvent(e.target.value)}><option value="card.created">Card criado</option></select></label>
+        <label className="grid gap-1 text-xs font-medium">Evento<select id="trigger-event" className="h-8 rounded-lg border border-input bg-background px-2 text-sm" value={event} onChange={(e) => setEvent(e.target.value)}><option value="card.created">Card criado</option><option value="card.moved">Card movido entre colunas</option></select></label>
         <label className="grid gap-1 text-xs font-medium">Webhook do Fusion<Input id="trigger-webhook-url" type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://fusion-agents-dev.brq.com/api/hooks/..." /></label>
         <Button id="trigger-create" type="submit" disabled={loading || !name.trim() || !webhookUrl.trim()}>Adicionar</Button>
       </form></CardContent>

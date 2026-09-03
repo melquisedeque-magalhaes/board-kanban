@@ -14,6 +14,7 @@ const dbMock = vi.hoisted(() => ({
   counter: { update: vi.fn(), findUnique: vi.fn() },
   notification: { createMany: vi.fn() },
   columnSubscription: { findMany: vi.fn() },
+  workflowTrigger: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
@@ -25,8 +26,9 @@ vi.mock("./notifications", () => ({
   notifyBlockerChange: notificationMock.blocker,
   notifyComment: notificationMock.comment,
 }));
-const triggerMock = vi.hoisted(() => ({ dispatchCardCreated: vi.fn() }));
+const triggerMock = vi.hoisted(() => ({ dispatchCardCreated: vi.fn(), dispatchCardMoved: vi.fn() }));
 vi.mock("./card-created-trigger", () => triggerMock);
+vi.mock("./card-moved-trigger", () => triggerMock);
 
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
@@ -68,7 +70,7 @@ describe("resolveColumnId", () => {
 
 describe("moveCard", () => {
   it("calcula position no fim quando omitida", async () => {
-    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null });
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null, column: { id: "c1", name: "Desenvolvimento" } });
     dbMock.column.findUnique.mockResolvedValue({ id: "c1" });
     dbMock.card.findMany.mockResolvedValue([{ position: 1000 }]);
     dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c1", position: 2000 });
@@ -135,6 +137,31 @@ describe("moveCard", () => {
     expect(notificationMock.moved).toHaveBeenCalledWith(
       dbMock, "card1", "u1", "c1", { id: "c2", name: "Aguardando Teste" },
     );
+  });
+
+  it("dispara trigger depois do commit somente ao mudar de coluna", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null, column: { id: "c1", name: "Desenvolvimento" } });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c2", name: "Aguardando Teste" });
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c2", position: 1000 });
+
+    await moveCard("card1", "c2");
+
+    expect(triggerMock.dispatchCardMoved).toHaveBeenCalledWith(
+      "card1",
+      { id: "c1", name: "Desenvolvimento" },
+      { id: "c2", name: "Aguardando Teste" },
+    );
+  });
+
+  it("não dispara trigger ao reordenar na mesma coluna", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c1", name: "Desenvolvimento" });
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c1", position: 1000 });
+
+    await moveCard("card1", "c1", 1000);
+
+    expect(triggerMock.dispatchCardMoved).not.toHaveBeenCalled();
   });
 });
 

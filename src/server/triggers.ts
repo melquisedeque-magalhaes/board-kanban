@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-export const TRIGGER_EVENTS = ["card.created"] as const;
+export const TRIGGER_EVENTS = ["card.created", "card.moved"] as const;
 export type TriggerEvent = (typeof TRIGGER_EVENTS)[number];
 
 const ALLOWED_WEBHOOK_HOSTS = new Set(["fusion-agents-dev.brq.com", "fusion-agents.brq.com"]);
