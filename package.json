@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && next build",
+    "build": "npm run migrate:deploy && next build",
+    "migrate:deploy": "node scripts/migrate-deploy.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
