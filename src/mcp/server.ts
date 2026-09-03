@@ -258,7 +258,7 @@ export function buildMcpServer() {
   s.registerTool(
     "add_comment",
     {
-      description: "Adiciona comentário a um card",
+      description: "Adiciona comentário a um card. Use actor='fusion-agents' para atribuir o comentário ao agente técnico.",
       inputSchema: {
         cardId: z.string(),
         body: z.string(),
