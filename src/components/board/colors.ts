@@ -91,6 +91,13 @@ export const BLOCKER: Record<string, Swatch & { label: string; border: string }>
   AJUSTES: { label: "Ajustes a Fazer", bg: "#d3e5ef", text: "#183347", border: "#4a90d9" },
 };
 
+// Card em operação por um agente: chip + contorno tracejado. Matiz teal para
+// não colidir com tipo, prioridade nem bloqueio (ver os mapas acima) — um card
+// pode estar marcado E impedido, e as duas marcas precisam se distinguir.
+export const BOT: Swatch & { label: string; border: string } = {
+  label: "Robô", bg: "#d6f0ee", text: "#14504b", border: "#2fa39b",
+};
+
 // Cor do avatar derivada do nome (estável).
 const AVATAR_PALETTE = [
   "#6b7cff", "#3aa675", "#e07a5f", "#5b8def",

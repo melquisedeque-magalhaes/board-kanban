@@ -157,7 +157,7 @@ O board e a REST API ficam **atrás de login** (Clerk). O `/api/mcp` **NÃO** �
 
 - **Board**: Agrupamento top-level de colunas
 - **Column**: Coluna do kanban com cards, cor (`color`, hex) e ordem (`position`)
-- **Card**: Tarefa/item com título, descrição, prioridade, assignees, labels e comentários
+- **Card**: Tarefa/item com título, descrição, prioridade, assignees, labels, comentários e a marca `bot` (em operação por um agente)
 - **User**: Usuário que pode ser assignee ou autor de comentários
 - **Label**: Tag para categorizar cards
 - **Comment**: Comentário em um card
@@ -191,6 +191,7 @@ Authorization: Bearer <MCP_TOKEN>
 | `create_card` | Cria um novo card em uma coluna |
 | `update_card` | Atualiza campos de um card |
 | `move_card` | Move um card para outra coluna/posição |
+| `set_card_bot` | Marca/desmarca o card como em operação por um robô |
 | `add_comment` | Adiciona um comentário a um card |
 | `update_comment` | Edita o texto de um comentário |
 | `delete_comment` | Exclui um comentário e os anexos dele (irreversível) |

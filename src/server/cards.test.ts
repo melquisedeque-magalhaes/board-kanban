@@ -29,7 +29,7 @@ vi.mock("./notifications", () => ({
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
   createCard, updateCard, getCard, listColumns, nextCardCode, peekCardCode,
-  normalizeCardCode, getCardByCode, deleteComment, boardVersion,
+  normalizeCardCode, getCardByCode, deleteComment, boardVersion, setCardBot,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
@@ -409,5 +409,66 @@ describe("boardVersion", () => {
     counts();
     dbMock.column.findMany.mockResolvedValue([{ id: "c1", name: "A Fazer", color: null, position: 1000 }]);
     expect(await boardVersion()).toBe(a);
+  });
+});
+
+describe("marca de robô", () => {
+  const stubCreate = () => {
+    dbMock.column.findFirst.mockResolvedValue({ id: "col1" });
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.user.findMany.mockResolvedValue([]);
+    dbMock.label.findMany.mockResolvedValue([]);
+    dbMock.counter.update.mockResolvedValue({ value: 1 });
+    dbMock.card.create.mockResolvedValue({ id: "new" });
+  };
+
+  it("card nasce desmarcado", async () => {
+    stubCreate();
+    await createCard({ columnName: "A Fazer", title: "x" });
+    expect(dbMock.card.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ bot: false }),
+    }));
+  });
+
+  it("createCard aceita já nascer marcado", async () => {
+    stubCreate();
+    await createCard({ columnName: "A Fazer", title: "x", bot: true });
+    expect(dbMock.card.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ bot: true }),
+    }));
+  });
+
+  it("updateCard encaminha a flag", async () => {
+    dbMock.card.findUnique.mockResolvedValue({ blocker: null });
+    dbMock.card.update.mockResolvedValue({ id: "card1", bot: true });
+    dbMock.user.findMany.mockResolvedValue([]);
+
+    await updateCard("card1", { bot: true });
+
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ bot: true }),
+    }));
+  });
+
+  it("setCardBot só toca a flag — não arrasta assignee, label nem notificação", async () => {
+    dbMock.card.update.mockResolvedValue({ id: "card1", bot: true });
+
+    await setCardBot("card1", true);
+
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "card1" }, data: { bot: true },
+    }));
+    expect(dbMock.user.findMany).not.toHaveBeenCalled();
+    expect(dbMock.label.findMany).not.toHaveBeenCalled();
+    expect(notificationMock.moved).not.toHaveBeenCalled();
+    expect(notificationMock.blocker).not.toHaveBeenCalled();
+  });
+
+  it("setCardBot desmarca", async () => {
+    dbMock.card.update.mockResolvedValue({ id: "card1", bot: false });
+    await setCardBot("card1", false);
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { bot: false },
+    }));
   });
 });

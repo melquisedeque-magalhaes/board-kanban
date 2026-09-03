@@ -135,6 +135,7 @@ export function buildMcpServer() {
         parentId: z.string().optional().describe("id do card pai (torna este card uma subtarefa)"),
         blocker: blocker.optional().describe("Impedimento, Aviso ou Ajustes a Fazer"),
         blockerReason: z.string().optional().describe("Motivo do impedimento/aviso"),
+        bot: z.boolean().optional().describe("Marca o card como em operação por um robô"),
       },
     },
     async ({ createdBy, ...rest }) => {
@@ -166,6 +167,7 @@ export function buildMcpServer() {
         parentId: z.string().nullable().optional().describe("id do card pai (null desvincula)"),
         blocker: blocker.nullable().optional().describe("Impedimento/Aviso/Ajustes a Fazer (null limpa)"),
         blockerReason: z.string().nullable().optional().describe("Motivo (null limpa)"),
+        bot: z.boolean().optional().describe("Marca/desmarca o card como em operação por um robô"),
         actor: z.string().optional().describe("Quem executa a alteração — id, nome ou e-mail"),
       },
     },
@@ -219,6 +221,19 @@ export function buildMcpServer() {
       },
     },
     async ({ id, assignees }) => json(await cards.unassignCard(id, assignees)),
+  );
+
+  s.registerTool(
+    "set_card_bot",
+    {
+      description:
+        "Marca ou desmarca o card como 'em operação por um robô' — o card ganha ícone e moldura própria no board, avisando que um agente já pegou a tarefa. Marque ao começar a trabalhar no card e desmarque ao terminar. Nenhuma outra tool liga essa marca sozinha.",
+      inputSchema: {
+        id: z.string(),
+        bot: z.boolean().describe("true marca como em operação; false desmarca"),
+      },
+    },
+    async ({ id, bot }) => json(await cards.setCardBot(id, bot)),
   );
 
   s.registerTool(

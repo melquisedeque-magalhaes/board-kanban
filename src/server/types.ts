@@ -26,6 +26,7 @@ export interface CreateCardInput {
   parentId?: string;
   blocker?: Blocker;
   blockerReason?: string;
+  bot?: boolean; // card em operação por um agente
 }
 export interface UpdateCardInput {
   title?: string;
@@ -44,4 +45,5 @@ export interface UpdateCardInput {
   parentId?: string | null;
   blocker?: Blocker | null;
   blockerReason?: string | null;
+  bot?: boolean; // card em operação por um agente
 }

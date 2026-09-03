@@ -265,6 +265,7 @@ export async function createCard(input: CreateCardInput) {
       parentId: input.parentId ?? null,
       blocker: input.blocker ?? null,
       blockerReason: input.blockerReason ?? null,
+      bot: input.bot ?? false,
       assignees: { connect: assigneeIds.map((id) => ({ id })) },
       labels: { connect: labelIds.map((id) => ({ id })) },
     },
@@ -301,6 +302,7 @@ export async function updateCard(id: string, input: UpdateCardInput, actor?: str
         parentId: input.parentId,
         blocker: input.blocker,
         blockerReason: input.blockerReason,
+        bot: input.bot,
       },
       include: cardInclude,
     });
@@ -309,6 +311,13 @@ export async function updateCard(id: string, input: UpdateCardInput, actor?: str
     }
     return updated;
   });
+}
+
+// Liga/desliga a marca de "operado por robô". Caminho próprio em vez de um
+// updateCard genérico: é a única escrita que um agente faz sem tocar em mais
+// nada do card, e não deve arrastar resolução de assignee/label/notificação.
+export function setCardBot(id: string, bot: boolean) {
+  return db.card.update({ where: { id }, data: { bot }, include: cardInclude });
 }
 
 export async function moveCard(id: string, columnIdRef: string, position?: number, actor?: string) {

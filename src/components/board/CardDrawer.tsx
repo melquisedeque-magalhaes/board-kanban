@@ -7,12 +7,12 @@ import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
   Package, UserPlus, ExternalLink, Ban, TriangleAlert, Wrench, ListTree, CornerLeftUp, BookText,
-  Trash2,
+  Trash2, Bot,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnData } from "./Column";
 import type { UserLite } from "./Chrome";
-import { avatarColor, initials, columnSwatch, CARD_TYPE, BLOCKER } from "./colors";
+import { avatarColor, initials, columnSwatch, CARD_TYPE, BLOCKER, BOT } from "./colors";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ interface CardDetail {
   type: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
   blocker: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
   blockerReason: string | null;
+  bot: boolean;
   parent: { id: string; code: string | null; title: string } | null;
   children: { id: string; code: string | null; title: string; type: string | null; column: { name: string } }[];
   version: string | null;
@@ -362,6 +363,15 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
         ) : (
           <>
             <SheetHeader className="px-8 pb-3 pt-8">
+              {card.bot ? (
+                <Badge
+                  variant="secondary"
+                  className="w-fit gap-1 border-transparent font-medium"
+                  style={{ background: BOT.bg, color: BOT.text }}
+                >
+                  <Bot className="size-3" /> Em operação por um robô
+                </Badge>
+              ) : null}
               {bl ? (
                 <Badge
                   variant="secondary"
@@ -605,6 +615,32 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                     />
                   ) : null}
                 </div>
+              </Row>
+
+              {/* Toggle manual: o normal é o agente marcar/desmarcar pelo MCP, mas
+                  card fica preso marcado quando o agente morre no meio — e aí
+                  precisa de alguém para destravar. */}
+              <Row icon={Bot} label="Robô">
+                <button
+                  onClick={() => patch({ bot: !card.bot })}
+                  className={inlineField + " flex items-center gap-2"}
+                >
+                  <span
+                    className={
+                      "relative h-4 w-7 shrink-0 rounded-full transition-colors " +
+                      (card.bot ? "" : "bg-muted-foreground/30")
+                    }
+                    style={card.bot ? { background: BOT.border } : undefined}
+                  >
+                    <span
+                      className={
+                        "absolute top-0.5 size-3 rounded-full bg-white transition-all " +
+                        (card.bot ? "left-3.5" : "left-0.5")
+                      }
+                    />
+                  </span>
+                  {card.bot ? "Em operação" : "Não está em operação"}
+                </button>
               </Row>
 
               <Row icon={Clock} label="Criado em">

@@ -16,6 +16,7 @@ const TOOLS: [string, string][] = [
   ["create_card", "Cria um card numa coluna."],
   ["update_card", "Edita título, descrição, prioridade, código, responsáveis e labels."],
   ["move_card", "Move um card entre colunas e/ou reordena."],
+  ["set_card_bot", "Marca/desmarca o card como em operação por um robô (ícone + moldura no board)."],
   ["add_comment", "Adiciona um comentário a um card."],
   ["update_comment", "Edita o texto de um comentário."],
   ["delete_comment", "Exclui um comentário e os anexos dele (irreversível)."],
