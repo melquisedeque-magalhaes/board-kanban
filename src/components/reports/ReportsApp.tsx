@@ -158,7 +158,7 @@ export function ReportsApp({ initial }: { initial: DeliveryReport }) {
         <CardHeader><CardTitle className="text-sm">Distribuição por coluna (cards ativos)</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-2.5">
           {r.byColumn.map((c) => {
-            const sw = columnSwatch(c.name);
+            const sw = columnSwatch(c.name, c.color);
             return (
               <div key={c.id} className="flex items-center gap-3 text-sm">
                 <span className="w-36 shrink-0 truncate text-xs font-medium" title={c.name}>{c.name}</span>

@@ -19,11 +19,20 @@ vi.mock("@/server/cards", () => ({
   moveCard: (...args: unknown[]) => moveCard(...args),
   addComment: (...args: unknown[]) => addComment(...args),
   updateComment: vi.fn(),
+  deleteComment: vi.fn(),
+  getCardByCode: vi.fn(),
+  normalizeCardCode: (code: string) => code,
   addAttachment: vi.fn(),
   listAttachments: vi.fn(),
   listUsers: vi.fn(),
   listLabels: vi.fn(),
   resolveUserIds: (...args: unknown[]) => resolveUserIds(...args),
+}));
+vi.mock("@/server/columns", () => ({
+  createColumn: vi.fn(),
+  updateColumn: vi.fn(),
+  moveColumn: vi.fn(),
+  deleteColumn: vi.fn(),
 }));
 import { buildMcpServer } from "./server";
 
@@ -33,16 +42,17 @@ describe("buildMcpServer", () => {
     expect(s).toBeTruthy();
   });
 
-  it("registra exatamente as 18 tools esperadas", () => {
+  it("registra exatamente as 24 tools esperadas", () => {
     const s = buildMcpServer();
     const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
       ._registeredTools;
     expect(Object.keys(registered).sort()).toEqual(
       [
         "add_attachment", "add_comment", "archive_card", "assign_card", "create_card",
-        "get_card", "get_delivery_report", "list_archived_cards", "list_attachments", "list_cards",
-        "list_columns", "list_labels", "list_users", "move_card", "unarchive_card",
-        "unassign_card", "update_card", "update_comment",
+        "create_column", "delete_column", "delete_comment", "get_card", "get_card_by_code",
+        "get_delivery_report", "list_archived_cards", "list_attachments", "list_cards",
+        "list_columns", "list_labels", "list_users", "move_card", "move_column",
+        "unarchive_card", "unassign_card", "update_card", "update_column", "update_comment",
       ].sort(),
     );
   });

@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const dbMock = vi.hoisted(() => ({
   $transaction: vi.fn(async (fn: (tx: typeof dbMock) => unknown) => fn(dbMock)),
   column: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
-  card: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  card: {
+    findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(),
+    update: vi.fn(), delete: vi.fn(), aggregate: vi.fn(), count: vi.fn(),
+  },
   user: { findMany: vi.fn() },
   label: { findMany: vi.fn() },
-  comment: { create: vi.fn() },
-  attachment: { updateMany: vi.fn() },
+  comment: { create: vi.fn(), findUnique: vi.fn(), delete: vi.fn(), count: vi.fn() },
+  attachment: { updateMany: vi.fn(), count: vi.fn() },
   counter: { update: vi.fn(), findUnique: vi.fn() },
   notification: { createMany: vi.fn() },
   columnSubscription: { findMany: vi.fn() },
@@ -26,6 +29,7 @@ vi.mock("./notifications", () => ({
 import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
   createCard, updateCard, getCard, listColumns, nextCardCode, peekCardCode,
+  normalizeCardCode, getCardByCode, deleteComment, boardVersion,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
@@ -315,5 +319,95 @@ describe("peekCardCode", () => {
   it("começa em TI-1 se o contador ainda não existir", async () => {
     dbMock.counter.findUnique.mockResolvedValue(null);
     expect(await peekCardCode()).toBe("TI-1");
+  });
+});
+
+describe("normalizeCardCode", () => {
+  it("aceita a chave como o time escreve", () => {
+    expect(normalizeCardCode("TI-282")).toBe("TI-282");
+    expect(normalizeCardCode(" ti-282 ")).toBe("TI-282");
+    expect(normalizeCardCode("ti 282")).toBe("TI-282");
+    expect(normalizeCardCode("TI282")).toBe("TI-282");
+    expect(normalizeCardCode("282")).toBe("TI-282");
+  });
+
+  it("preserva outro prefixo em vez de forçar TI-", () => {
+    expect(normalizeCardCode("abc-9")).toBe("ABC-9");
+  });
+});
+
+describe("getCardByCode", () => {
+  it("busca pela chave normalizada e traz os comentários", async () => {
+    dbMock.card.findFirst.mockResolvedValue({ id: "card1", code: "TI-282" });
+
+    const r = await getCardByCode("ti282");
+
+    expect(dbMock.card.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { code: "TI-282" },
+      include: expect.objectContaining({ comments: expect.anything() }),
+    }));
+    expect(r).toEqual({ id: "card1", code: "TI-282" });
+  });
+
+  it("chave inexistente devolve null (sem throw)", async () => {
+    dbMock.card.findFirst.mockResolvedValue(null);
+    expect(await getCardByCode("TI-99999")).toBeNull();
+  });
+});
+
+describe("deleteComment", () => {
+  it("apaga o comentário e devolve as URLs dos anexos p/ limpar o Blob", async () => {
+    dbMock.comment.findUnique.mockResolvedValue({
+      id: "cm1", attachments: [{ url: "https://x.blob.vercel-storage.com/a.png" }],
+    });
+
+    const r = await deleteComment("cm1");
+
+    expect(dbMock.comment.delete).toHaveBeenCalledWith({ where: { id: "cm1" } });
+    expect(r).toEqual({ urls: ["https://x.blob.vercel-storage.com/a.png"] });
+  });
+
+  it("comentário inexistente devolve null e não apaga nada", async () => {
+    dbMock.comment.findUnique.mockResolvedValue(null);
+    expect(await deleteComment("nope")).toBeNull();
+    expect(dbMock.comment.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe("boardVersion", () => {
+  const counts = () => {
+    dbMock.card.aggregate.mockResolvedValue({ _max: { updatedAt: new Date(5) } });
+    dbMock.card.count.mockResolvedValue(2);
+    dbMock.comment.count.mockResolvedValue(1);
+    dbMock.attachment.count.mockResolvedValue(0);
+  };
+
+  it("muda quando uma coluna é renomeada, recolorida ou movida", async () => {
+    counts();
+    dbMock.column.findMany.mockResolvedValue([{ id: "c1", name: "A Fazer", color: null, position: 1000 }]);
+    const before = await boardVersion();
+
+    counts();
+    dbMock.column.findMany.mockResolvedValue([{ id: "c1", name: "Backlog", color: null, position: 1000 }]);
+    const renamed = await boardVersion();
+
+    counts();
+    dbMock.column.findMany.mockResolvedValue([{ id: "c1", name: "A Fazer", color: "#d3e5ef", position: 1000 }]);
+    const recolored = await boardVersion();
+
+    counts();
+    dbMock.column.findMany.mockResolvedValue([{ id: "c1", name: "A Fazer", color: null, position: 2000 }]);
+    const moved = await boardVersion();
+
+    expect(new Set([before, renamed, recolored, moved]).size).toBe(4);
+  });
+
+  it("é estável quando nada muda", async () => {
+    counts();
+    dbMock.column.findMany.mockResolvedValue([{ id: "c1", name: "A Fazer", color: null, position: 1000 }]);
+    const a = await boardVersion();
+    counts();
+    dbMock.column.findMany.mockResolvedValue([{ id: "c1", name: "A Fazer", color: null, position: 1000 }]);
+    expect(await boardVersion()).toBe(a);
   });
 });

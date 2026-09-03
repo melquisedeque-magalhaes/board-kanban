@@ -115,27 +115,47 @@ export async function listCards(filter: CardFilter) {
   });
 }
 
-export function getCard(id: string) {
-  return db.card.findUnique({
-    where: { id },
+// Detalhe completo do card: o resumo de cardInclude + comentários e anexos.
+const cardDetailInclude = {
+  ...cardInclude,
+  comments: {
     include: {
-      ...cardInclude,
-      comments: {
-        include: {
-          author: true,
-          attachments: { orderBy: { createdAt: "asc" } },
-        },
-        orderBy: { createdAt: "asc" },
-      },
-      // Anexos do card (não os de comentário) — comentários trazem os seus.
-      attachments: { where: { commentId: null }, orderBy: { createdAt: "asc" } },
-      // Sobrescreve o children resumido de cardInclude: subtarefas precisam de code/title/type.
-      children: {
-        where: { archivedAt: null },
-        select: { id: true, code: true, title: true, type: true, column: { select: { name: true } } },
-        orderBy: { createdAt: "asc" },
-      },
+      author: true,
+      attachments: { orderBy: { createdAt: "asc" } },
     },
+    orderBy: { createdAt: "asc" },
+  },
+  // Anexos do card (não os de comentário) — comentários trazem os seus.
+  attachments: { where: { commentId: null }, orderBy: { createdAt: "asc" } },
+  // Sobrescreve o children resumido de cardInclude: subtarefas precisam de code/title/type.
+  children: {
+    where: { archivedAt: null },
+    select: { id: true, code: true, title: true, type: true, column: { select: { name: true } } },
+    orderBy: { createdAt: "asc" },
+  },
+} as const;
+
+export function getCard(id: string) {
+  return db.card.findUnique({ where: { id }, include: cardDetailInclude });
+}
+
+// Normaliza a chave digitada por gente/agente: "ti-282", "TI 282" e "282" todos
+// viram "TI-282". Sem prefixo assume o padrão global de chave (TI-).
+export function normalizeCardCode(input: string): string {
+  const raw = input.trim().toUpperCase().replace(/\s+/g, "");
+  if (/^\d+$/.test(raw)) return `${CARD_CODE_PREFIX}${raw}`;
+  const m = raw.match(/^([A-Z]+)[-_]?(\d+)$/);
+  return m ? `${m[1]}-${m[2]}` : raw;
+}
+
+// Busca o card pela CHAVE (TI-282) em vez do id. Mesmo payload do getCard.
+// `code` não é unique no schema (chaves manuais são permitidas), então usamos
+// findFirst — se houver duplicata, vem a mais antiga.
+export function getCardByCode(code: string) {
+  return db.card.findFirst({
+    where: { code: normalizeCardCode(code) },
+    orderBy: { createdAt: "asc" },
+    include: cardDetailInclude,
   });
 }
 
@@ -357,20 +377,50 @@ export async function updateComment(id: string, body: string) {
   return { id };
 }
 
+// Exclusão definitiva do comentário. Cascade remove os anexos no DB; devolvemos
+// as URLs p/ a rota limpar o Vercel Blob (mesmo contrato de deleteCard).
+export async function deleteComment(id: string): Promise<{ urls: string[] } | null> {
+  const comment = await db.comment.findUnique({
+    where: { id },
+    select: { id: true, attachments: { select: { url: true } } },
+  });
+  if (!comment) return null;
+  await db.comment.delete({ where: { id } });
+  return { urls: comment.attachments.map((a) => a.url) };
+}
+
 export const listUsers = () => db.user.findMany({ orderBy: { name: "asc" } });
 export const listLabels = () => db.label.findMany({ orderBy: { name: "asc" } });
 
 // Assinatura barata do estado do board para polling de tempo real.
-// Muda em edição (updatedAt), criação/exclusão (count) e comentário (commentCount).
+// Muda em edição (updatedAt), criação/exclusão (count), comentário
+// (commentCount) e em qualquer mexida nas colunas (colSig).
 export async function boardVersion(): Promise<string> {
-  const [agg, cardCount, commentCount, attachmentCount] = await Promise.all([
+  const [agg, cardCount, commentCount, attachmentCount, columns] = await Promise.all([
     db.card.aggregate({ _max: { updatedAt: true } }),
     db.card.count(),
     db.comment.count(),
     db.attachment.count(),
+    // Column não tem updatedAt; a lista é pequena (uma dezena de linhas), então
+    // a própria estrutura serve de assinatura — pega renomear, recolorir e mover.
+    db.column.findMany({
+      orderBy: { position: "asc" },
+      select: { id: true, name: true, color: true, position: true },
+    }),
   ]);
   const ts = agg._max.updatedAt?.getTime() ?? 0;
-  return `${ts}-${cardCount}-${commentCount}-${attachmentCount}`;
+  const colSig = columns.map((c) => `${c.id}:${c.name}:${c.color ?? ""}:${c.position}`).join("|");
+  return `${ts}-${cardCount}-${commentCount}-${attachmentCount}-${hash(colSig)}`;
+}
+
+// Hash curto e estável (FNV-1a) só p/ compactar a assinatura das colunas.
+function hash(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
 }
 
 export type { CardFilter, CreateCardInput, UpdateCardInput } from "./types";

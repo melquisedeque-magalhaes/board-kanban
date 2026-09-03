@@ -6,12 +6,19 @@ import { Button } from "@/components/ui/button";
 
 const TOOLS: [string, string][] = [
   ["list_columns", "Lista as colunas do board com seus cards."],
+  ["create_column", "Cria uma coluna no fim do board (nome + cor hex)."],
+  ["update_column", "Renomeia e/ou troca a cor de uma coluna."],
+  ["move_column", "Reordena a coluna (index 0-based)."],
+  ["delete_column", "Exclui a coluna — só funciona se ela estiver vazia."],
   ["list_cards", "Lista cards filtrando por coluna, responsável ou prioridade."],
-  ["get_card", "Detalha um card específico (com comentários)."],
+  ["get_card", "Detalha um card pelo id (com comentários)."],
+  ["get_card_by_code", "Detalha um card pela chave — TI-282, ti-282 ou 282."],
   ["create_card", "Cria um card numa coluna."],
   ["update_card", "Edita título, descrição, prioridade, código, responsáveis e labels."],
   ["move_card", "Move um card entre colunas e/ou reordena."],
   ["add_comment", "Adiciona um comentário a um card."],
+  ["update_comment", "Edita o texto de um comentário."],
+  ["delete_comment", "Exclui um comentário e os anexos dele (irreversível)."],
   ["list_users", "Lista os usuários do board."],
   ["list_labels", "Lista as labels disponíveis."],
 ];

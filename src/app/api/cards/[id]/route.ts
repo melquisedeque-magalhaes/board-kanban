@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { del } from "@vercel/blob";
 import { updateCard, moveCard, getCard, deleteCard } from "@/server/cards";
+import { purgeBlobs } from "@/server/blobs";
 import { requireUser } from "@/server/auth-guard";
 import { syncCurrentUser } from "@/server/users";
 
@@ -34,10 +34,6 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   const result = await deleteCard(id);
   if (!result) return new Response("Not found", { status: 404 });
-  // Limpa os blobs órfãos (card + comentários) — best-effort.
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blobs = result.urls.filter((u) => u.includes("blob.vercel-storage.com"));
-    if (blobs.length) { try { await del(blobs); } catch { /* já removidos ou externos */ } }
-  }
+  await purgeBlobs(result.urls); // blobs órfãos do card + dos comentários
   return NextResponse.json({ ok: true });
 }

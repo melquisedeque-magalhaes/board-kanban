@@ -19,7 +19,54 @@ const COLUMN_COLORS: Record<string, Swatch> = {
   Cancelado: { bg: "#ffe2dd", text: "#5d2117" },
 };
 
-export function columnSwatch(name: string): Swatch {
+// Paleta oferecida ao escolher a cor de uma coluna (mesma família dos chips).
+export const COLUMN_PALETTE: { label: string; value: string }[] = [
+  { label: "Cinza", value: "#e3e2e0" },
+  { label: "Azul", value: "#d3e5ef" },
+  { label: "Amarelo", value: "#fdecc8" },
+  { label: "Vermelho", value: "#ffe2dd" },
+  { label: "Rosa", value: "#f5dce8" },
+  { label: "Roxo", value: "#e8deee" },
+  { label: "Verde", value: "#dbeddb" },
+  { label: "Laranja", value: "#fae3d0" },
+];
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+function channels(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// Luminância relativa (WCAG) — decide se o texto do chip vai claro ou escuro.
+function luminance(hex: string): number {
+  const lin = channels(hex).map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+}
+
+// Escurece a própria cor de fundo p/ virar o texto: mantém o matiz do chip
+// (mesmo efeito visual da paleta fixa) em vez de jogar um cinza genérico.
+function darken(hex: string, amount: number): string {
+  const out = channels(hex)
+    .map((c) => Math.round(c * (1 - amount)).toString(16).padStart(2, "0"))
+    .join("");
+  return `#${out}`;
+}
+
+// Swatch derivado de uma cor livre (coluna criada pelo usuário).
+export function swatchFromColor(color: string): Swatch {
+  return luminance(color) < 0.5
+    ? { bg: color, text: "#ffffff" }
+    : { bg: color, text: darken(color, 0.72) };
+}
+
+// Cor do chip da coluna. Precedência: cor salva na coluna → mapa por nome
+// (colunas do seed) → cinza default. Assim coluna nova nunca fica sem cor.
+export function columnSwatch(name: string, color?: string | null): Swatch {
+  if (color && HEX.test(color)) return swatchFromColor(color);
   return COLUMN_COLORS[name] ?? DEFAULT_COLUMN;
 }
 

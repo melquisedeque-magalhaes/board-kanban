@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as cards from "@/server/cards";
+import * as columns from "@/server/columns";
 import { getDeliveryReport } from "@/server/reports";
+import { purgeBlobs } from "@/server/blobs";
 
 const priority = z.enum(["CRITICA", "ALTA", "MEDIA", "BAIXA"]);
 const cardType = z.enum(["BUG", "FEATURE", "TAREFA", "SUBTASK"]);
@@ -17,6 +19,56 @@ export function buildMcpServer() {
     "list_columns",
     { description: "Lista colunas do board com seus cards", inputSchema: {} },
     async () => json(await cards.listColumns()),
+  );
+
+  s.registerTool(
+    "create_column",
+    {
+      description: "Cria uma coluna no fim do board",
+      inputSchema: {
+        name: z.string().describe("Nome da coluna (não pode repetir uma existente)"),
+        color: z.string().optional().describe("Cor do chip em hex, ex.: #d3e5ef"),
+      },
+    },
+    async ({ name, color }) => json(await columns.createColumn({ name, color })),
+  );
+
+  s.registerTool(
+    "update_column",
+    {
+      description: "Renomeia e/ou troca a cor de uma coluna",
+      inputSchema: {
+        id: z.string(),
+        name: z.string().optional(),
+        color: z.string().nullable().optional().describe("Hex, ex.: #d3e5ef (null volta pra cor default)"),
+      },
+    },
+    async ({ id, name, color }) => json(await columns.updateColumn(id, { name, color })),
+  );
+
+  s.registerTool(
+    "move_column",
+    {
+      description: "Reordena uma coluna no board. Use index (posição 0-based na ordem atual).",
+      inputSchema: {
+        id: z.string(),
+        index: z.number().int().optional().describe("Destino 0-based: 0 = primeira coluna"),
+        position: z.number().optional().describe("Position fracionária crua (uso interno do board)"),
+      },
+    },
+    async ({ id, index, position }) => {
+      if (index == null && position == null) throw new Error("index ou position é obrigatório");
+      return json(await columns.moveColumn(id, { index, position }));
+    },
+  );
+
+  s.registerTool(
+    "delete_column",
+    {
+      description: "Exclui uma coluna. Só funciona se ela estiver vazia — coluna com card (mesmo arquivado) é recusada.",
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => json(await columns.deleteColumn(id)),
   );
 
   s.registerTool(
@@ -41,6 +93,21 @@ export function buildMcpServer() {
       inputSchema: { id: z.string() },
     },
     async ({ id }) => json(await cards.getCard(id)),
+  );
+
+  s.registerTool(
+    "get_card_by_code",
+    {
+      description: "Detalhe de um card pela CHAVE (ex.: TI-282), com comentários. Use esta quando tiver a chave; get_card espera o id (cuid).",
+      inputSchema: {
+        code: z.string().describe("Chave do card: TI-282, ti-282 ou só 282"),
+      },
+    },
+    async ({ code }) => {
+      const card = await cards.getCardByCode(code);
+      if (!card) throw new Error(`Card não encontrado: ${cards.normalizeCardCode(code)}`);
+      return json(card);
+    },
   );
 
   s.registerTool(
@@ -196,6 +263,20 @@ export function buildMcpServer() {
       inputSchema: { commentId: z.string(), body: z.string() },
     },
     async ({ commentId, body }) => json(await cards.updateComment(commentId, body)),
+  );
+
+  s.registerTool(
+    "delete_comment",
+    {
+      description: "Exclui um comentário de vez (junto com os anexos dele). Não é reversível.",
+      inputSchema: { commentId: z.string() },
+    },
+    async ({ commentId }) => {
+      const result = await cards.deleteComment(commentId);
+      if (!result) throw new Error(`Comentário não encontrado: ${commentId}`);
+      await purgeBlobs(result.urls);
+      return json({ ok: true, deletedAttachments: result.urls.length });
+    },
   );
 
   s.registerTool(
