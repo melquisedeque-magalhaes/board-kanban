@@ -5,6 +5,7 @@ import type {
 } from "./types";
 import { notifyBlockerChange, notifyCardMoved, notifyComment } from "./notifications";
 import { dispatchCardCreated } from "./card-created-trigger";
+import { dispatchCardMoved } from "./card-moved-trigger";
 
 // Bloqueios que impedem o card de mudar de coluna (reorder na mesma coluna é livre).
 const BLOCKING_MOVE: Blocker[] = ["IMPEDIMENTO", "AJUSTES"];
@@ -325,9 +326,9 @@ export function setCardBot(id: string, bot: boolean) {
 
 export async function moveCard(id: string, columnIdRef: string, position?: number, actor?: string) {
   const actorId = await resolveUserId(actor);
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const current = await tx.card.findUnique({
-      where: { id }, select: { columnId: true, blocker: true },
+      where: { id }, select: { columnId: true, blocker: true, column: { select: { id: true, name: true } } },
     });
     if (!current) throw new Error(`Card não encontrado: ${id}`);
     const target = columnIdRef
@@ -359,8 +360,11 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
       where: { id }, data: { columnId: target.id, position: pos, assignees }, include: cardInclude,
     });
     await notifyCardMoved(tx, id, actorId, current.columnId, target);
-    return moved;
+    const fromColumn = target.id === current.columnId ? null : current.column;
+    return { moved, fromColumn, toColumn: target };
   });
+  if (result.fromColumn) await dispatchCardMoved(id, result.fromColumn, result.toColumn);
+  return result.moved;
 }
 
 export async function addComment(
