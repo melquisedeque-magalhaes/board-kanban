@@ -45,13 +45,14 @@ export interface DeliveryReport {
   byType: BreakdownRow<CardType | "SEM_TIPO">[];
   byPriority: BreakdownRow<Priority | "SEM_PRIORIDADE">[];
   overdueCards: OverdueCard[];
+  aiActivities: { analyzed: number; developed: number; tested: number };
 }
 
 // Relatório de entregas por pessoa e distribuição do board.
 // Considera cards arquivados como entregues se estavam numa coluna de conclusão.
 export async function getDeliveryReport(): Promise<DeliveryReport> {
   const now = new Date();
-  const [columns, users, cards] = await Promise.all([
+  const [columns, users, cards, aiActivityGroups] = await Promise.all([
     db.column.findMany({ orderBy: { position: "asc" } }),
     db.user.findMany({ orderBy: { name: "asc" } }),
     db.card.findMany({
@@ -60,7 +61,15 @@ export async function getDeliveryReport(): Promise<DeliveryReport> {
         column: { select: { id: true, name: true } },
       },
     }),
+    db.aiActivity.findMany({ select: { cardId: true, type: true }, distinct: ["cardId", "type"] }),
   ]);
+
+  const aiActivities = { analyzed: 0, developed: 0, tested: 0 };
+  for (const activity of aiActivityGroups) {
+    if (activity.type === "ANALYZED") aiActivities.analyzed += 1;
+    if (activity.type === "DEVELOPED") aiActivities.developed += 1;
+    if (activity.type === "TESTED") aiActivities.tested += 1;
+  }
 
   const doneCol = new Set(columns.filter((c) => isDoneName(c.name)).map((c) => c.id));
   const cancelCol = new Set(columns.filter((c) => isCancelName(c.name)).map((c) => c.id));
@@ -134,5 +143,6 @@ export async function getDeliveryReport(): Promise<DeliveryReport> {
     byPriority: prioOrder.map((k) => prioAgg.get(k) ?? { key: k, delivered: 0, wip: 0 })
       .filter((r) => r.delivered + r.wip > 0),
     overdueCards: overdueCards.sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    aiActivities,
   };
 }

@@ -35,6 +35,12 @@ enum NotificationType {
   BLOCKER_CHANGED
 }
 
+enum AiActivityType {
+  ANALYZED
+  DEVELOPED
+  TESTED
+}
+
 model Board {
   id        String   @id @default(cuid())
   name      String
@@ -81,6 +87,7 @@ model Card {
   labels        Label[]        @relation("CardLabels")
   comments      Comment[]
   notifications Notification[]
+  aiActivities  AiActivity[]
   attachments   Attachment[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -131,6 +138,20 @@ model WorkflowTrigger {
   updatedAt   DateTime @updatedAt
 
   @@index([event, enabled])
+}
+
+model AiActivity {
+  id              String         @id @default(cuid())
+  cardId          String
+  card            Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type            AiActivityType
+  idempotencyKey  String         @unique
+  workflowId      String?
+  runId           String?
+  createdAt       DateTime       @default(now())
+
+  @@index([type, createdAt])
+  @@index([cardId, createdAt])
 }
 
 model Label {
