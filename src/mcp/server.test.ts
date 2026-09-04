@@ -5,6 +5,7 @@ const moveCard = vi.fn().mockResolvedValue({ id: "card1" });
 const addComment = vi.fn().mockResolvedValue({ id: "comment1" });
 const resolveUserIds = vi.fn().mockResolvedValue(["u1"]);
 const setCardBot = vi.fn().mockResolvedValue({ id: "card1", bot: true });
+const recordAiActivity = vi.fn().mockResolvedValue({ id: "activity1", type: "ANALYZED" });
 vi.mock("@/server/cards", () => ({
   listColumns: vi.fn().mockResolvedValue([{ id: "c1", name: "A Fazer" }]),
   listCards: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock("@/server/columns", () => ({
   moveColumn: vi.fn(),
   deleteColumn: vi.fn(),
 }));
+vi.mock("@/server/ai-activities", () => ({ recordAiActivity: (...args: unknown[]) => recordAiActivity(...args) }));
 import { buildMcpServer } from "./server";
 
 describe("buildMcpServer", () => {
@@ -44,7 +46,7 @@ describe("buildMcpServer", () => {
     expect(s).toBeTruthy();
   });
 
-  it("registra exatamente as 25 tools esperadas", () => {
+  it("registra exatamente as 26 tools esperadas", () => {
     const s = buildMcpServer();
     const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
       ._registeredTools;
@@ -54,7 +56,7 @@ describe("buildMcpServer", () => {
         "create_column", "delete_column", "delete_comment", "get_card", "get_card_by_code",
         "get_delivery_report", "list_archived_cards", "list_attachments", "list_cards",
         "list_columns", "list_labels", "list_users", "move_card", "move_column",
-        "set_card_bot", "unarchive_card", "unassign_card", "update_card", "update_column",
+        "record_ai_activity", "set_card_bot", "unarchive_card", "unassign_card", "update_card", "update_column",
         "update_comment",
       ].sort(),
     );
@@ -67,7 +69,7 @@ describe("buildMcpServer", () => {
     return tools.create_card.handler;
   };
 
-  const callback = (name: "update_card" | "move_card" | "add_comment" | "set_card_bot") => {
+  const callback = (name: "update_card" | "move_card" | "add_comment" | "set_card_bot" | "record_ai_activity") => {
     const s = buildMcpServer();
     const tools = (s as unknown as { _registeredTools: Record<string, Tool> })._registeredTools;
     return tools[name].handler;
@@ -116,6 +118,11 @@ describe("buildMcpServer", () => {
 
     await callback("set_card_bot")({ id: "card1", bot: false });
     expect(setCardBot).toHaveBeenCalledWith("card1", false);
+  });
+
+  it("record_ai_activity encaminha a atividade", async () => {
+    await callback("record_ai_activity")({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
+    expect(recordAiActivity).toHaveBeenCalledWith({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
   });
 
   it("nenhuma outra tool liga a marca de robô por conta própria", async () => {

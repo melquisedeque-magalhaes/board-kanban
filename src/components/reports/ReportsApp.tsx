@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Loader2, AlertTriangle, UserX } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, AlertTriangle, UserX, Bot, Code2, FlaskConical, Search } from "lucide-react";
 import type { DeliveryReport } from "@/server/reports";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -117,6 +117,15 @@ export function ReportsApp({ initial }: { initial: DeliveryReport }) {
         <StatCard icon={<AlertTriangle className="size-5" />} label="Vencidos" value={r.totals.overdue} tone="danger" />
         <StatCard icon={<UserX className="size-5" />} label="Sem responsável" value={r.totals.unassignedWip} tone="muted" />
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Bot className="size-4" /> Atividades da IA</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-3 gap-3">
+          <StatCard icon={<Search className="size-5" />} label="Analisados" value={r.aiActivities.analyzed} tone="muted" />
+          <StatCard icon={<Code2 className="size-5" />} label="Desenvolvidos" value={r.aiActivities.developed} tone="wip" />
+          <StatCard icon={<FlaskConical className="size-5" />} label="Testados" value={r.aiActivities.tested} tone="done" />
+        </CardContent>
+      </Card>
 
       {/* Entregas por pessoa */}
       <Card>

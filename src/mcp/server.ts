@@ -4,6 +4,7 @@ import * as cards from "@/server/cards";
 import * as columns from "@/server/columns";
 import { getDeliveryReport } from "@/server/reports";
 import { purgeBlobs } from "@/server/blobs";
+import { recordAiActivity } from "@/server/ai-activities";
 
 const priority = z.enum(["CRITICA", "ALTA", "MEDIA", "BAIXA"]);
 const cardType = z.enum(["BUG", "FEATURE", "TAREFA", "SUBTASK"]);
@@ -336,10 +337,26 @@ export function buildMcpServer() {
     "get_delivery_report",
     {
       description:
-        "Relatório de entregas do time: totais (entregues/WIP/vencidos/sem responsável), entregas por pessoa, distribuição por coluna, breakdown por tipo e prioridade, e lista de cards vencidos. 'Entregue' = card em coluna de conclusão (Done/Concluído); WIP = ativo fora de done/cancelado. Sem histórico de movimentação, o estado é o atual.",
+        "Relatório de entregas do time: totais (entregues/WIP/vencidos/sem responsável), atividades da IA (cards analisados/desenvolvidos/testados), entregas por pessoa, distribuição por coluna, breakdown por tipo e prioridade, e lista de cards vencidos. 'Entregue' = card em coluna de conclusão (Done/Concluído); WIP = ativo fora de done/cancelado. Sem histórico de movimentação, o estado é o atual.",
       inputSchema: {},
     },
     async () => json(await getDeliveryReport()),
+  );
+
+  s.registerTool(
+    "record_ai_activity",
+    {
+      description: "Registra atividade concluída pela IA em um card, sem duplicar a mesma operação",
+      inputSchema: {
+        cardId: z.string(),
+        type: z.enum(["ANALYZED", "DEVELOPED", "TESTED"]),
+        idempotencyKey: z.string().describe("Chave única da atividade no workflow/run"),
+        workflowId: z.string().optional(),
+        runId: z.string().optional(),
+      },
+    },
+    async ({ cardId, type, idempotencyKey, workflowId, runId }) =>
+      json(await recordAiActivity({ cardId, type, idempotencyKey, workflowId, runId })),
   );
 
   return s;
