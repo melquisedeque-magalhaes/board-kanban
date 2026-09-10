@@ -34,6 +34,8 @@ import {
   resolveColumnId, moveCard, deleteCard, assignCard, unassignCard, addComment,
   createCard, updateCard, getCard, listColumns, nextCardCode, peekCardCode,
   normalizeCardCode, getCardByCode, deleteComment, boardVersion, setCardBot,
+  toCardSummary, clampMcpLimit, listCardsSummary, listColumnsSummary,
+  listArchivedCardsSummary, MCP_LIST_DEFAULT_LIMIT, MCP_LIST_MAX_LIMIT,
 } from "./cards";
 
 beforeEach(() => vi.clearAllMocks());
@@ -500,5 +502,205 @@ describe("marca de robô", () => {
     expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
       data: { bot: false },
     }));
+  });
+});
+
+/**
+ * Projeção enxuta para agentes (MCP).
+ *
+ * Motivo: `cardInclude` é a forma da UI. Servida por MCP com 578 cards ela
+ * devolvia 1.424.036 caracteres em `list_cards({})` (~356k tokens) e 1.531.643
+ * em `list_columns({})` (~383k) — `details` sozinho pesa 495k, `assignees` 207k
+ * e `requestedBy` 142k, porque vêm os objetos completos de usuário.
+ *
+ * Passos de cada grupo:
+ * - toCardSummary: setup = card com details/documentation e relações completas;
+ *   asserts = os blobs somem, assignees/labels/requestedBy viram nomes, contagens
+ *   preservadas.
+ * - clampMcpLimit: asserts = undefined vira o default, acima do máximo satura,
+ *   valor inválido/<1 volta pro default.
+ * - listCardsSummary: setup = db mockado; asserts = envelope {total,offset,limit,
+ *   hasMore,cards}, skip/take repassados, `details` NÃO está no select, filtros
+ *   preservados.
+ * - listColumnsSummary: asserts = nenhum `cards` no include (é o que estourava) e
+ *   contagem de cards não-arquivados por coluna.
+ * Teardown: mocks limpos no beforeEach global do arquivo.
+ */
+describe("projeção enxuta para MCP", () => {
+  const fullCard = {
+    id: "c1", code: "TI-1", title: "Título", columnId: "col1",
+    details: "# markdown longo".repeat(500),
+    documentation: "docs longos".repeat(200),
+    priority: "ALTA", type: "BUG", version: "2.3.1", branchUrl: "http://git/x",
+    dueDate: null, position: 1000, parentId: null, blocker: "AVISO",
+    blockerReason: "esperando", bot: false,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z",
+    assignees: [{ name: "Giovanni" }, { name: "Melq" }],
+    labels: [{ name: "infra" }],
+    requestedBy: { name: "Ricardo" },
+    _count: { comments: 3, children: 1 },
+  };
+
+  describe("toCardSummary", () => {
+    it("descarta details e documentation", () => {
+      const s = toCardSummary(fullCard) as unknown as Record<string, unknown>;
+      expect(s).not.toHaveProperty("details");
+      expect(s).not.toHaveProperty("documentation");
+      expect(JSON.stringify(s)).not.toContain("markdown longo");
+    });
+
+    it("achata assignees, labels e requestedBy em nomes", () => {
+      const s = toCardSummary(fullCard);
+      expect(s.assignees).toEqual(["Giovanni", "Melq"]);
+      expect(s.labels).toEqual(["infra"]);
+      expect(s.requestedBy).toBe("Ricardo");
+    });
+
+    it("preserva identidade, ordenação e contagens", () => {
+      const s = toCardSummary(fullCard);
+      expect(s.id).toBe("c1");
+      expect(s.code).toBe("TI-1");
+      expect(s.title).toBe("Título");
+      expect(s.columnId).toBe("col1");
+      expect(s.position).toBe(1000);
+      expect(s.blocker).toBe("AVISO");
+      expect(s.comments).toBe(3);
+      expect(s.children).toBe(1);
+    });
+
+    it("card sem relações não estoura", () => {
+      const s = toCardSummary({ id: "c2", title: "x", columnId: "col1", position: 1 });
+      expect(s.assignees).toEqual([]);
+      expect(s.labels).toEqual([]);
+      expect(s.requestedBy).toBeNull();
+      expect(s.comments).toBe(0);
+    });
+  });
+
+  describe("clampMcpLimit", () => {
+    it("sem valor usa o default", () => {
+      expect(clampMcpLimit(undefined)).toBe(MCP_LIST_DEFAULT_LIMIT);
+    });
+
+    it("satura no máximo", () => {
+      expect(clampMcpLimit(10_000)).toBe(MCP_LIST_MAX_LIMIT);
+    });
+
+    it("valor inválido ou menor que 1 volta pro default", () => {
+      expect(clampMcpLimit(0)).toBe(MCP_LIST_DEFAULT_LIMIT);
+      expect(clampMcpLimit(-5)).toBe(MCP_LIST_DEFAULT_LIMIT);
+      expect(clampMcpLimit(Number.NaN)).toBe(MCP_LIST_DEFAULT_LIMIT);
+    });
+
+    it("valor dentro da faixa passa (truncado para inteiro)", () => {
+      expect(clampMcpLimit(10)).toBe(10);
+      expect(clampMcpLimit(10.7)).toBe(10);
+    });
+  });
+
+  describe("listCardsSummary", () => {
+    it("devolve envelope paginado e repassa skip/take", async () => {
+      dbMock.card.count.mockResolvedValue(578);
+      dbMock.card.findMany.mockResolvedValue([fullCard]);
+
+      const out = await listCardsSummary({}, { limit: 10, offset: 20 });
+
+      expect(out.total).toBe(578);
+      expect(out.offset).toBe(20);
+      expect(out.limit).toBe(10);
+      expect(out.hasMore).toBe(true);
+      expect(out.cards).toHaveLength(1);
+      expect(out.cards[0]).not.toHaveProperty("details");
+      const arg = dbMock.card.findMany.mock.calls[0][0];
+      expect(arg.skip).toBe(20);
+      expect(arg.take).toBe(10);
+    });
+
+    it("nunca pede details ao banco", async () => {
+      dbMock.card.count.mockResolvedValue(1);
+      dbMock.card.findMany.mockResolvedValue([]);
+
+      await listCardsSummary({});
+
+      const arg = dbMock.card.findMany.mock.calls[0][0];
+      expect(JSON.stringify(arg.select ?? {})).not.toContain("details");
+      expect(arg.include).toBeUndefined();
+    });
+
+    it("hasMore falso quando a página cobre o total", async () => {
+      dbMock.card.count.mockResolvedValue(2);
+      dbMock.card.findMany.mockResolvedValue([fullCard, fullCard]);
+
+      const out = await listCardsSummary({});
+
+      expect(out.hasMore).toBe(false);
+    });
+
+    it("preserva o filtro por coluna, prioridade e tipo", async () => {
+      dbMock.card.count.mockResolvedValue(0);
+      dbMock.card.findMany.mockResolvedValue([]);
+
+      await listCardsSummary({ columnId: "col1", priority: "ALTA", type: "BUG" });
+
+      const arg = dbMock.card.findMany.mock.calls[0][0];
+      expect(arg.where).toMatchObject({
+        archivedAt: null, columnId: "col1", priority: "ALTA", type: "BUG",
+      });
+    });
+  });
+
+  describe("listColumnsSummary", () => {
+    it("não carrega os cards da coluna — só a contagem", async () => {
+      dbMock.column.findMany.mockResolvedValue([]);
+
+      await listColumnsSummary();
+
+      const arg = dbMock.column.findMany.mock.calls[0][0];
+      expect(arg.include.cards).toBeUndefined();
+      expect(JSON.stringify(arg.include)).toContain("cards");
+    });
+
+    it("expõe cardCount por coluna", async () => {
+      dbMock.column.findMany.mockResolvedValue([
+        { id: "col1", name: "A Fazer", color: null, position: 1000, _count: { subscriptions: 0, cards: 42 } },
+      ]);
+
+      const out = await listColumnsSummary();
+
+      expect(out).toEqual([
+        { id: "col1", name: "A Fazer", color: null, position: 1000, subscriptions: 0, cardCount: 42 },
+      ]);
+    });
+  });
+});
+
+/**
+ * listArchivedCardsSummary — o arquivo tinha 66 cards e 128.575 caracteres
+ * (~32k tokens) na forma da UI, também acima do corte de 25k do SDK do Claude.
+ * Passos: setup = db mockado; asserts = envelope paginado, nome da coluna
+ * preservado, `details` nunca pedido ao banco.
+ */
+describe("listArchivedCardsSummary", () => {
+  it("devolve envelope paginado com o nome da coluna e sem details", async () => {
+    dbMock.card.count.mockResolvedValue(66);
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "c1", title: "arquivado", columnId: "col1", position: 1,
+        details: "blob".repeat(1000), column: { name: "Concluído" },
+        archivedAt: "2026-01-05T00:00:00.000Z", _count: { comments: 0, children: 0 },
+      },
+    ]);
+
+    const out = await listArchivedCardsSummary({ limit: 5, offset: 0 });
+
+    expect(out.total).toBe(66);
+    expect(out.hasMore).toBe(true);
+    expect(out.cards[0].column).toBe("Concluído");
+    expect(out.cards[0].archivedAt).toBe("2026-01-05T00:00:00.000Z");
+    expect(out.cards[0]).not.toHaveProperty("details");
+    const arg = dbMock.card.findMany.mock.calls[0][0];
+    expect(arg.where).toMatchObject({ archivedAt: { not: null } });
+    expect(JSON.stringify(arg.select ?? {})).not.toContain("details");
+    expect(arg.take).toBe(5);
   });
 });
