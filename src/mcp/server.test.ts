@@ -6,9 +6,15 @@ const addComment = vi.fn().mockResolvedValue({ id: "comment1" });
 const resolveUserIds = vi.fn().mockResolvedValue(["u1"]);
 const setCardBot = vi.fn().mockResolvedValue({ id: "card1", bot: true });
 const recordAiActivity = vi.fn().mockResolvedValue({ id: "activity1", type: "ANALYZED" });
+const listColumnsSummary = vi.fn().mockResolvedValue([{ id: "c1", name: "A Fazer", cardCount: 3 }]);
+const listCardsSummary = vi.fn().mockResolvedValue({ total: 0, offset: 0, limit: 50, hasMore: false, cards: [] });
+const listArchivedCardsSummary = vi.fn().mockResolvedValue({ total: 0, offset: 0, limit: 50, hasMore: false, cards: [] });
 vi.mock("@/server/cards", () => ({
   listColumns: vi.fn().mockResolvedValue([{ id: "c1", name: "A Fazer" }]),
+  listColumnsSummary: (...args: unknown[]) => listColumnsSummary(...args),
   listCards: vi.fn(),
+  listCardsSummary: (...args: unknown[]) => listCardsSummary(...args),
+  listArchivedCardsSummary: (...args: unknown[]) => listArchivedCardsSummary(...args),
   getCard: vi.fn(),
   createCard: (...args: unknown[]) => createCard(...args),
   updateCard: (...args: unknown[]) => updateCard(...args),
@@ -30,6 +36,10 @@ vi.mock("@/server/cards", () => ({
   listUsers: vi.fn(),
   listLabels: vi.fn(),
   resolveUserIds: (...args: unknown[]) => resolveUserIds(...args),
+  // As descrições de list_cards/list_archived_cards citam os limites reais, para
+  // o agente não descobrir a paginação por tentativa e erro.
+  MCP_LIST_DEFAULT_LIMIT: 50,
+  MCP_LIST_MAX_LIMIT: 200,
 }));
 vi.mock("@/server/columns", () => ({
   createColumn: vi.fn(),
@@ -123,6 +133,55 @@ describe("buildMcpServer", () => {
   it("record_ai_activity encaminha a atividade", async () => {
     await callback("record_ai_activity")({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
     expect(recordAiActivity).toHaveBeenCalledWith({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
+  });
+
+  /**
+   * Payload enxuto no MCP (TI-595).
+   *
+   * Passos: setup = mocks das funções de resumo; asserts = list_columns usa
+   * listColumnsSummary (NÃO a listColumns da UI, que embute todo card e gerava
+   * 1,5 MB), list_cards e list_archived_cards usam as versões paginadas e
+   * repassam limit/offset.
+   */
+  const listCallback = (name: "list_columns" | "list_cards" | "list_archived_cards") => {
+    const s = buildMcpServer();
+    const tools = (s as unknown as { _registeredTools: Record<string, Tool> })._registeredTools;
+    return tools[name].handler;
+  };
+
+  it("list_columns usa a projeção com contagem, não a query da UI", async () => {
+    listColumnsSummary.mockClear();
+    await listCallback("list_columns")({});
+    expect(listColumnsSummary).toHaveBeenCalled();
+  });
+
+  it("list_cards repassa limit e offset para a versão paginada", async () => {
+    listCardsSummary.mockClear();
+    await listCallback("list_cards")({ columnName: "A Fazer", limit: 10, offset: 20 });
+    expect(listCardsSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ columnName: "A Fazer" }),
+      { limit: 10, offset: 20 },
+    );
+  });
+
+  it("list_cards sem paginação explícita não inventa limite", async () => {
+    listCardsSummary.mockClear();
+    await listCallback("list_cards")({});
+    expect(listCardsSummary).toHaveBeenCalledWith({}, { limit: undefined, offset: undefined });
+  });
+
+  it("list_cards não repassa limit/offset como se fossem filtro", async () => {
+    listCardsSummary.mockClear();
+    await listCallback("list_cards")({ limit: 5, offset: 1 });
+    const [filter] = listCardsSummary.mock.calls[0];
+    expect(filter).not.toHaveProperty("limit");
+    expect(filter).not.toHaveProperty("offset");
+  });
+
+  it("list_archived_cards usa a versão paginada", async () => {
+    listArchivedCardsSummary.mockClear();
+    await listCallback("list_archived_cards")({ limit: 5 });
+    expect(listArchivedCardsSummary).toHaveBeenCalledWith({ limit: 5, offset: undefined });
   });
 
   it("nenhuma outra tool liga a marca de robô por conta própria", async () => {

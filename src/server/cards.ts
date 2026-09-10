@@ -117,6 +117,254 @@ export async function listCards(filter: CardFilter) {
   });
 }
 
+// ── Projeção enxuta para agentes (MCP) ──
+//
+// `cardInclude` é a forma da UI: ela precisa de `details`, do objeto completo de
+// cada responsável (para o avatar) e de quem solicitou. Servida por MCP a um
+// agente, essa forma é inutilizável. Medido em 10/09/2026, com 578 cards:
+//
+//   list_columns({})  1.531.643 caracteres  (~383k tokens)
+//   list_cards({})    1.424.036 caracteres  (~356k tokens)
+//
+// `details` sozinho pesa 495k caracteres, `assignees` 207k e `requestedBy` 142k.
+// O SDK do Claude corta tool result em 25k tokens, grava o excedente em arquivo
+// e o agente queima turnos de Read/Grep — uma pergunta de "quantas colunas
+// existem" custou 8 tool calls. O harness codex não corta: manda o payload
+// inteiro ao modelo e estoura a janela.
+//
+// A projeção abaixo mantém o que identifica, ordena e prioriza um card, e joga
+// fora os blobs — quem precisa do corpo chama `get_card`. `listColumns` (UI) e
+// `listCards` (API HTTP) seguem intactas.
+
+export const MCP_LIST_DEFAULT_LIMIT = 50;
+export const MCP_LIST_MAX_LIMIT = 200;
+
+/** Limite pedido pelo agente, saturado na faixa [1, MCP_LIST_MAX_LIMIT]. */
+export function clampMcpLimit(raw?: number): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return MCP_LIST_DEFAULT_LIMIT;
+  const n = Math.floor(raw);
+  if (n < 1) return MCP_LIST_DEFAULT_LIMIT;
+  return Math.min(n, MCP_LIST_MAX_LIMIT);
+}
+
+// `select`, não `include`: assim details/documentation não saem nem do banco.
+const cardSummarySelect = {
+  id: true, code: true, title: true, columnId: true, priority: true, type: true,
+  version: true, branchUrl: true, dueDate: true, position: true, parentId: true,
+  blocker: true, blockerReason: true, bot: true, createdAt: true, updatedAt: true,
+  assignees: { select: { name: true } },
+  labels: { select: { name: true } },
+  requestedBy: { select: { name: true } },
+  _count: { select: { comments: true, children: true } },
+} as const;
+
+interface CardSummarySource {
+  id: string;
+  code?: string | null;
+  title: string;
+  columnId: string;
+  priority?: unknown;
+  type?: unknown;
+  version?: string | null;
+  branchUrl?: string | null;
+  dueDate?: Date | string | null;
+  position: number;
+  parentId?: string | null;
+  blocker?: unknown;
+  blockerReason?: string | null;
+  bot?: boolean;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  assignees?: { name: string | null }[];
+  labels?: { name: string | null }[];
+  requestedBy?: { name: string | null } | null;
+  _count?: { comments?: number; children?: number };
+}
+
+export interface CardSummary {
+  id: string;
+  code: string | null;
+  title: string;
+  columnId: string;
+  priority: unknown;
+  type: unknown;
+  version: string | null;
+  branchUrl: string | null;
+  dueDate: Date | string | null;
+  position: number;
+  parentId: string | null;
+  blocker: unknown;
+  blockerReason: string | null;
+  bot: boolean;
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
+  /** Nomes, não objetos de usuário — o objeto completo respondia por 207k caracteres. */
+  assignees: string[];
+  labels: string[];
+  requestedBy: string | null;
+  comments: number;
+  children: number;
+}
+
+const names = (rows?: { name: string | null }[]): string[] =>
+  (rows ?? []).map((r) => r.name).filter((n): n is string => typeof n === "string");
+
+export function toCardSummary(card: CardSummarySource): CardSummary {
+  return {
+    id: card.id,
+    code: card.code ?? null,
+    title: card.title,
+    columnId: card.columnId,
+    priority: card.priority ?? null,
+    type: card.type ?? null,
+    version: card.version ?? null,
+    branchUrl: card.branchUrl ?? null,
+    dueDate: card.dueDate ?? null,
+    position: card.position,
+    parentId: card.parentId ?? null,
+    blocker: card.blocker ?? null,
+    blockerReason: card.blockerReason ?? null,
+    bot: card.bot ?? false,
+    createdAt: card.createdAt ?? null,
+    updatedAt: card.updatedAt ?? null,
+    assignees: names(card.assignees),
+    labels: names(card.labels),
+    requestedBy: card.requestedBy?.name ?? null,
+    comments: card._count?.comments ?? 0,
+    children: card._count?.children ?? 0,
+  };
+}
+
+/** `where` compartilhado entre listCards (UI/API) e listCardsSummary (MCP). */
+async function cardFilterWhere(filter: CardFilter) {
+  const columnId = filter.columnId ?? (filter.columnName
+    ? (await db.column.findFirst({ where: { name: filter.columnName } }))?.id
+    : undefined);
+  return {
+    archivedAt: null,
+    ...(columnId ? { columnId } : {}),
+    ...(filter.priority ? { priority: filter.priority } : {}),
+    ...(filter.type ? { type: filter.type } : {}),
+    ...(filter.assignee
+      ? { assignees: { some: { OR: [
+          { id: filter.assignee }, { name: filter.assignee }, { email: filter.assignee },
+        ] } } }
+      : {}),
+  };
+}
+
+export interface CardSummaryPage {
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  cards: CardSummary[];
+}
+
+/**
+ * Cards em forma enxuta e PAGINADA. O envelope carrega `total`/`hasMore` para o
+ * agente saber que existe mais página em vez de concluir em cima de um pedaço.
+ */
+export async function listCardsSummary(
+  filter: CardFilter,
+  page?: { limit?: number; offset?: number },
+): Promise<CardSummaryPage> {
+  const where = await cardFilterWhere(filter);
+  const limit = clampMcpLimit(page?.limit);
+  const offset = Math.max(0, Math.floor(page?.offset ?? 0) || 0);
+  const [total, rows] = await Promise.all([
+    db.card.count({ where }),
+    db.card.findMany({
+      where,
+      orderBy: [{ columnId: "asc" }, { position: "asc" }],
+      select: cardSummarySelect,
+      skip: offset,
+      take: limit,
+    }),
+  ]);
+  const cards = (rows as unknown as CardSummarySource[]).map(toCardSummary);
+  return { total, offset, limit, hasMore: offset + cards.length < total, cards };
+}
+
+export interface ArchivedCardSummary extends CardSummary {
+  /** Nome da coluna de origem — a UI do arquivo mostra de onde o card saiu. */
+  column: string | null;
+  archivedAt: Date | string | null;
+}
+
+export interface ArchivedCardSummaryPage {
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  cards: ArchivedCardSummary[];
+}
+
+/**
+ * Arquivo em forma enxuta e paginada. Na forma da UI eram 66 cards em 128.575
+ * caracteres (~32k tokens), também acima do corte de tool result do SDK.
+ */
+export async function listArchivedCardsSummary(
+  page?: { limit?: number; offset?: number },
+): Promise<ArchivedCardSummaryPage> {
+  const where = { archivedAt: { not: null } };
+  const limit = clampMcpLimit(page?.limit);
+  const offset = Math.max(0, Math.floor(page?.offset ?? 0) || 0);
+  const [total, rows] = await Promise.all([
+    db.card.count({ where }),
+    db.card.findMany({
+      where,
+      orderBy: { archivedAt: "desc" },
+      select: { ...cardSummarySelect, archivedAt: true, column: { select: { name: true } } },
+      skip: offset,
+      take: limit,
+    }),
+  ]);
+  const cards = (rows as unknown as (CardSummarySource & {
+    archivedAt?: Date | string | null;
+    column?: { name: string | null } | null;
+  })[]).map((row) => ({
+    ...toCardSummary(row),
+    column: row.column?.name ?? null,
+    archivedAt: row.archivedAt ?? null,
+  }));
+  return { total, offset, limit, hasMore: offset + cards.length < total, cards };
+}
+
+export interface ColumnSummary {
+  id: string;
+  name: string;
+  color: string | null;
+  position: number;
+  subscriptions: number;
+  cardCount: number;
+}
+
+/**
+ * Colunas com a CONTAGEM de cards, sem os cards. Era `listColumns` (a query da
+ * UI, que embute todo card com `cardInclude`) que servia o `list_columns` do MCP
+ * e produzia os 1,5 MB. Quem quer os cards chama `list_cards`.
+ */
+export async function listColumnsSummary(): Promise<ColumnSummary[]> {
+  const cols = await db.column.findMany({
+    orderBy: { position: "asc" },
+    include: {
+      _count: { select: { subscriptions: true, cards: { where: { archivedAt: null } } } },
+    },
+  });
+  return (cols as unknown as {
+    id: string; name: string; color: string | null; position: number;
+    _count?: { subscriptions?: number; cards?: number };
+  }[]).map((c) => ({
+    id: c.id,
+    name: c.name,
+    color: c.color ?? null,
+    position: c.position,
+    subscriptions: c._count?.subscriptions ?? 0,
+    cardCount: c._count?.cards ?? 0,
+  }));
+}
+
 // Detalhe completo do card: o resumo de cardInclude + comentários e anexos.
 const cardDetailInclude = {
   ...cardInclude,

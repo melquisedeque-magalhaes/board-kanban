@@ -16,10 +16,19 @@ const json = (data: unknown) => ({
 export function buildMcpServer() {
   const s = new McpServer({ name: "board-kanban", version: "1.0.0" });
 
+  // Devolve a CONTAGEM de cards, não os cards. Antes chamava cards.listColumns()
+  // — a query da UI, que embute todo card com details — e o resultado eram
+  // 1.531.643 caracteres (~383k tokens) com 578 cards no board: acima do corte
+  // de tool result do SDK do Claude e da janela do modelo no harness codex.
   s.registerTool(
     "list_columns",
-    { description: "Lista colunas do board com seus cards", inputSchema: {} },
-    async () => json(await cards.listColumns()),
+    {
+      description:
+        "Lista as colunas do board com a contagem de cards não arquivados de cada uma. " +
+        "NÃO traz os cards — para eles use list_cards (paginado) ou get_card/get_card_by_code.",
+      inputSchema: {},
+    },
+    async () => json(await cards.listColumnsSummary()),
   );
 
   s.registerTool(
@@ -72,19 +81,33 @@ export function buildMcpServer() {
     async ({ id }) => json(await columns.deleteColumn(id)),
   );
 
+  // Resumo paginado: sem `details`/`documentation` e com responsáveis/labels em
+  // nomes. A forma completa da UI custava 1.424.036 caracteres (~356k tokens)
+  // numa única chamada sem filtro.
   s.registerTool(
     "list_cards",
     {
-      description: "Lista cards filtrando por coluna, assignee ou prioridade. Para 'todos os cards do usuário X', passe assignee com o id, nome ou e-mail dele.",
+      description:
+        "Lista cards em RESUMO e paginado, filtrando por coluna, assignee, prioridade ou tipo. " +
+        "Para 'todos os cards do usuário X', passe assignee com o id, nome ou e-mail dele. " +
+        "O resumo não inclui a descrição (details) nem a documentação do card — para o corpo " +
+        `use get_card ou get_card_by_code. Resposta: { total, offset, limit, hasMore, cards }. ` +
+        `Padrão de ${cards.MCP_LIST_DEFAULT_LIMIT} cards por página, máximo ${cards.MCP_LIST_MAX_LIMIT}; ` +
+        "quando hasMore for true, avance o offset em vez de concluir sobre a página parcial.",
       inputSchema: {
         columnId: z.string().optional(),
         columnName: z.string().optional(),
         assignee: z.string().optional().describe("id, nome ou e-mail do responsável"),
         priority: priority.optional(),
         type: cardType.optional(),
+        limit: z.number().int().optional().describe(
+          `Cards por página (padrão ${cards.MCP_LIST_DEFAULT_LIMIT}, máximo ${cards.MCP_LIST_MAX_LIMIT})`,
+        ),
+        offset: z.number().int().optional().describe("Quantos cards pular (padrão 0)"),
       },
     },
-    async (a) => json(await cards.listCards(a as cards.CardFilter)),
+    async ({ limit, offset, ...filter }) =>
+      json(await cards.listCardsSummary(filter as cards.CardFilter, { limit, offset })),
   );
 
   s.registerTool(
@@ -196,8 +219,19 @@ export function buildMcpServer() {
 
   s.registerTool(
     "list_archived_cards",
-    { description: "Lista os cards arquivados", inputSchema: {} },
-    async () => json(await cards.listArchivedCards()),
+    {
+      description:
+        "Lista os cards arquivados em RESUMO e paginado (sem details/documentation). " +
+        `Resposta: { total, offset, limit, hasMore, cards }. Padrão de ${cards.MCP_LIST_DEFAULT_LIMIT} ` +
+        `por página, máximo ${cards.MCP_LIST_MAX_LIMIT}.`,
+      inputSchema: {
+        limit: z.number().int().optional().describe(
+          `Cards por página (padrão ${cards.MCP_LIST_DEFAULT_LIMIT}, máximo ${cards.MCP_LIST_MAX_LIMIT})`,
+        ),
+        offset: z.number().int().optional().describe("Quantos cards pular (padrão 0)"),
+      },
+    },
+    async ({ limit, offset }) => json(await cards.listArchivedCardsSummary({ limit, offset })),
   );
 
   s.registerTool(
