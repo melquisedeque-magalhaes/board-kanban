@@ -278,7 +278,7 @@ curl -X POST http://localhost:3000/api/mcp \
    - `DATABASE_URL`: Sua string de conexão PostgreSQL gerenciada
    - `MCP_TOKEN`: Gere com `openssl rand -hex 24`
 
-4. **Deploy automático**: Vercel detecciona a mudança e deploya automaticamente
+4. **Deploy automático**: Cada push na branch `main` dispara um novo deploy na Vercel automaticamente
 
 5. **Configuração Post-Deploy**:
    - O script `postinstall` executa `prisma generate` automaticamente
