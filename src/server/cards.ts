@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 import { positionBetween } from "@/lib/positions";
 import type {
   CardFilter, CreateCardInput, UpdateCardInput, Blocker,
@@ -16,6 +17,7 @@ const BLOCKER_LABEL: Record<Blocker, string> = {
 };
 
 const cardInclude = {
+  aiActivities: { include: { workflow: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] as Prisma.AiActivityOrderByWithRelationInput[] },
   assignees: true,
   requestedBy: true,
   labels: true,

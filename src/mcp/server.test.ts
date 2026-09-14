@@ -6,6 +6,8 @@ const addComment = vi.fn().mockResolvedValue({ id: "comment1" });
 const resolveUserIds = vi.fn().mockResolvedValue(["u1"]);
 const setCardBot = vi.fn().mockResolvedValue({ id: "card1", bot: true });
 const recordAiActivity = vi.fn().mockResolvedValue({ id: "activity1", type: "ANALYZED" });
+const workflowCalls = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn(), start: vi.fn(), finish: vi.fn(), history: vi.fn() }));
+vi.mock("@/server/workflows", () => ({ listWorkflows: workflowCalls.list, createWorkflow: workflowCalls.create, updateWorkflow: workflowCalls.update }));
 const listColumnsSummary = vi.fn().mockResolvedValue([{ id: "c1", name: "A Fazer", cardCount: 3 }]);
 const listCardsSummary = vi.fn().mockResolvedValue({ total: 0, offset: 0, limit: 50, hasMore: false, cards: [] });
 const listArchivedCardsSummary = vi.fn().mockResolvedValue({ total: 0, offset: 0, limit: 50, hasMore: false, cards: [] });
@@ -47,7 +49,7 @@ vi.mock("@/server/columns", () => ({
   moveColumn: vi.fn(),
   deleteColumn: vi.fn(),
 }));
-vi.mock("@/server/ai-activities", () => ({ recordAiActivity: (...args: unknown[]) => recordAiActivity(...args) }));
+vi.mock("@/server/ai-activities", () => ({ recordAiActivity: (...args: unknown[]) => recordAiActivity(...args), startAiActivity: workflowCalls.start, finishAiActivity: workflowCalls.finish, listAiActivities: workflowCalls.history }));
 import { buildMcpServer } from "./server";
 
 describe("buildMcpServer", () => {
@@ -56,7 +58,7 @@ describe("buildMcpServer", () => {
     expect(s).toBeTruthy();
   });
 
-  it("registra exatamente as 26 tools esperadas", () => {
+  it("registra exatamente as 32 tools esperadas", () => {
     const s = buildMcpServer();
     const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
       ._registeredTools;
@@ -68,6 +70,7 @@ describe("buildMcpServer", () => {
         "list_columns", "list_labels", "list_users", "move_card", "move_column",
         "record_ai_activity", "set_card_bot", "unarchive_card", "unassign_card", "update_card", "update_column",
         "update_comment",
+        "list_workflows", "create_workflow", "update_workflow", "start_ai_activity", "finish_ai_activity", "list_ai_activities",
       ].sort(),
     );
   });
@@ -79,7 +82,7 @@ describe("buildMcpServer", () => {
     return tools.create_card.handler;
   };
 
-  const callback = (name: "update_card" | "move_card" | "add_comment" | "set_card_bot" | "record_ai_activity") => {
+  const callback = (name: string) => {
     const s = buildMcpServer();
     const tools = (s as unknown as { _registeredTools: Record<string, Tool> })._registeredTools;
     return tools[name].handler;
@@ -133,6 +136,28 @@ describe("buildMcpServer", () => {
   it("record_ai_activity encaminha a atividade", async () => {
     await callback("record_ai_activity")({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
     expect(recordAiActivity).toHaveBeenCalledWith({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
+  });
+
+  it("expõe cadastro e ciclo de atividade com identidade completa", async () => {
+    await callback("list_workflows")({}); expect(workflowCalls.list).toHaveBeenCalled();
+    await callback("create_workflow")({ name: "QA", color: "#123456" });
+    expect(workflowCalls.create).toHaveBeenCalledWith({ name: "QA", color: "#123456" });
+    await callback("update_workflow")({ id: "w1", active: false });
+    expect(workflowCalls.update).toHaveBeenCalledWith("w1", { active: false });
+    const input = { cardId: "c1", workflowTagId: "w1", type: "REVIEWED", idempotencyKey: "k", runId: "r1" };
+    await callback("start_ai_activity")(input); expect(workflowCalls.start).toHaveBeenCalledWith(input);
+    await callback("finish_ai_activity")({ cardId: "c1", activityId: "a1", status: "FAILED" });
+    expect(workflowCalls.finish).toHaveBeenCalledWith("c1", "a1", "FAILED");
+    await callback("list_ai_activities")({ cardId: "c1" }); expect(workflowCalls.history).toHaveBeenCalledWith("c1");
+  });
+
+  it("record_ai_activity mantém tipos legados e aceita criação/revisão, recusando tipo arbitrário", () => {
+    const server = buildMcpServer() as unknown as { _registeredTools: Record<string, { inputSchema: { safeParse: (input: unknown) => { success: boolean } } }> };
+    const schema = server._registeredTools.record_ai_activity.inputSchema;
+    for (const type of ["CREATED", "ANALYZED", "DEVELOPED", "TESTED", "REVIEWED"]) {
+      expect(schema.safeParse({ cardId: "c1", type, idempotencyKey: "k" }).success).toBe(true);
+    }
+    expect(schema.safeParse({ cardId: "c1", type: "DEPLOYED", idempotencyKey: "k" }).success).toBe(false);
   });
 
   /**

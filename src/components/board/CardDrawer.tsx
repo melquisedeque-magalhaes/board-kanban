@@ -10,6 +10,8 @@ import {
   Trash2, Bot,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CardWorkflows } from "@/components/workflows/CardWorkflows";
+import type { WorkflowActivity } from "@/components/workflows/workflow-ui";
 import type { ColumnData } from "./Column";
 import type { UserLite } from "./Chrome";
 import { avatarColor, initials, columnSwatch, CARD_TYPE, BLOCKER, BOT } from "./colors";
@@ -51,6 +53,7 @@ interface CardDetail {
   blocker: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
   blockerReason: string | null;
   bot: boolean;
+  aiActivities?: WorkflowActivity[];
   parent: { id: string; code: string | null; title: string } | null;
   children: { id: string; code: string | null; title: string; type: string | null; column: { name: string } }[];
   version: string | null;
@@ -183,6 +186,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
   const { data: card = null, isLoading: loading } = useQuery({
     queryKey: ["card", cardId],
     enabled: !!cardId,
+    refetchInterval: 10_000,
     queryFn: async (): Promise<CardDetail | null> => {
       const r = await fetch(`/api/cards/${cardId}`);
       return r.ok ? r.json() : null;
@@ -363,7 +367,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
         ) : (
           <>
             <SheetHeader className="px-8 pb-3 pt-8">
-              {card.bot ? (
+              {card.bot || card.aiActivities?.some((activity) => activity.status === "RUNNING") ? (
                 <Badge
                   variant="secondary"
                   className="w-fit gap-1 border-transparent font-medium"
@@ -617,12 +621,13 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                 </div>
               </Row>
 
-              {/* Toggle manual: o normal é o agente marcar/desmarcar pelo MCP, mas
-                  card fica preso marcado quando o agente morre no meio — e aí
-                  precisa de alguém para destravar. */}
+              {/* O marcador manual é independente das execuções registradas. */}
               <Row icon={Bot} label="Robô">
                 <button
                   onClick={() => patch({ bot: !card.bot })}
+                  role="switch"
+                  aria-checked={card.bot}
+                  aria-label="Marcador manual do robô"
                   className={inlineField + " flex items-center gap-2"}
                 >
                   <span
@@ -639,8 +644,9 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                       }
                     />
                   </span>
-                  {card.bot ? "Em operação" : "Não está em operação"}
+                  {card.bot ? "Marcador manual ligado" : "Marcador manual desligado"}
                 </button>
+                {card.aiActivities?.some((activity) => activity.status === "RUNNING") && <p className="px-2 text-xs text-muted-foreground">Em operação por workflow. Encerre a execução no histórico abaixo.</p>}
               </Row>
 
               <Row icon={Clock} label="Criado em">
@@ -651,6 +657,8 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
             <Separator />
 
             {/* Descrição rica (markdown + imagens + anexos) */}
+            <CardWorkflows key={card.id} cardId={card.id} onChanged={onChanged} />
+            <Separator />
             <div className="flex flex-col gap-2 px-8 py-5">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm font-semibold">

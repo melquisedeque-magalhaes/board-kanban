@@ -111,6 +111,9 @@ export function Chrome({ view, setView, users, online, openCardId, onOpenCard, o
           <Button id="trigger-menu" asChild variant="outline" size="sm">
             <NextLink href="/triggers"><Zap data-icon="inline-start" /> Triggers</NextLink>
           </Button>
+          <Button asChild variant="outline" size="sm">
+            <NextLink href="/workflows"><Zap data-icon="inline-start" /> Workflows</NextLink>
+          </Button>
           <NotificationCenter openCardId={openCardId} onOpenCard={onOpenCard} />
           <ThemeToggle />
           <UserButton>

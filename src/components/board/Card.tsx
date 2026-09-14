@@ -13,6 +13,7 @@ import {
   ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem,
 } from "@/components/ui/context-menu";
 import { PRIORITY, CARD_TYPE, BLOCKER, BOT, avatarColor, initials, type Swatch } from "./colors";
+import { WorkflowTags, type WorkflowActivity } from "@/components/workflows/workflow-ui";
 
 export function cardLink(id: string) {
   return `${typeof window !== "undefined" ? window.location.origin : ""}/?card=${id}`;
@@ -26,6 +27,7 @@ export interface CardData {
   type?: "BUG" | "FEATURE" | "TAREFA" | "SUBTASK" | null;
   blocker?: "IMPEDIMENTO" | "AVISO" | "AJUSTES" | null;
   bot?: boolean;
+  aiActivities?: WorkflowActivity[];
   parent?: { id: string; code: string | null; title: string } | null;
   children?: { id: string; column: { name: string } }[];
   version?: string | null;
@@ -50,12 +52,13 @@ export function CardView({
   const ty = card.type ? CARD_TYPE[card.type] : null;
   const bl = card.blocker ? BLOCKER[card.blocker] : null;
   const kids = card.children ?? [];
+  const operating = card.bot || card.aiActivities?.some((activity) => activity.status === "RUNNING");
   const kidsDone = kids.filter((k) => /(done|conclu)/i.test(k.column.name)).length;
   // Robô usa outline tracejado em vez de borda: a borda já é do bloqueio, e um
   // card pode estar em operação E impedido — as duas marcas convivem.
   const frame: React.CSSProperties = {
     ...(bl ? { borderColor: bl.border, borderLeftColor: bl.border } : null),
-    ...(card.bot ? { outline: `2px dashed ${BOT.border}`, outlineOffset: "2px" } : null),
+    ...(operating ? { outline: `2px dashed ${BOT.border}`, outlineOffset: "2px" } : null),
   };
   return (
     <div
@@ -126,7 +129,7 @@ export function CardView({
             v{card.version}
           </span>
         ) : null}
-        {card.bot ? (
+        {operating ? (
           <Badge
             variant="secondary"
             className="gap-1 border-transparent font-medium"
@@ -158,6 +161,7 @@ export function CardView({
           </span>
         ) : null}
       </div>
+      {!!card.aiActivities?.length && <WorkflowTags activities={card.aiActivities} />}
     </div>
   );
 }
