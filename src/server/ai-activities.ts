@@ -31,7 +31,8 @@ async function requireCard(tx: Prisma.TransactionClient, cardId: string) {
 
 function checkIdentity(existing: AiActivity, input: RecordAiActivityInput & { workflowTagId?: string; status?: string }) {
   if (existing.cardId !== input.cardId || existing.type !== input.type || existing.runId !== (input.runId ?? null)
-    || (!input.workflowTagId && !input.workflowId && existing.workflowTagId !== null)
+    || (input.workflowTagId && existing.workflowAssigned)
+    || (!input.workflowTagId && !input.workflowId && existing.workflowTagId !== null && !existing.workflowAssigned)
     || (input.workflowTagId ? existing.workflowTagId !== input.workflowTagId : existing.workflowId !== (input.workflowId ?? null))
     || (input.status && Boolean(existing.startedAt) !== (input.status === "RUNNING"))) {
     throw new DomainError("Chave de idempotência já usada para outra operação", 409);
@@ -48,10 +49,16 @@ export async function recordAiActivity(raw: RecordAiActivityInput) {
       if (existing.startedAt) throw new DomainError("Use a conclusão da execução para uma atividade iniciada", 409);
       return existing;
     }
-    const workflow = input.workflowId ? await tx.workflow.findUnique({ where: { externalId: input.workflowId } }) : null;
-    if (workflow && !workflow.active) throw new DomainError("Workflow desativado", 409);
+    const defaultWorkflow = !input.workflowId
+      ? (await tx.workflowDefault.findUnique({ where: { type: input.type }, include: { workflow: true } }))?.workflow
+      : null;
+    const workflow = input.workflowId
+      ? await tx.workflow.findUnique({ where: { externalId: input.workflowId } })
+      : defaultWorkflow?.active ? defaultWorkflow : null;
+    if (input.workflowId && workflow && !workflow.active) throw new DomainError("Workflow desativado", 409);
     const result = await tx.aiActivity.create({
-      data: { ...input, status: "COMPLETED", finishedAt: new Date(), workflowTagId: workflow?.id ?? null, workflowName: workflow?.name ?? null }, include,
+      data: { ...input, status: "COMPLETED", finishedAt: new Date(), workflowTagId: workflow?.id ?? null, workflowName: workflow?.name ?? null,
+        workflowAssigned: !input.workflowId && Boolean(workflow) }, include,
     });
     await tx.card.update({ where: { id: input.cardId }, data: { updatedAt: new Date() } });
     return result;
@@ -96,4 +103,40 @@ export async function finishAiActivity(cardId: string, id: string, raw: "COMPLET
 export async function listAiActivities(cardId: string) {
   await requireCard(db, cardId);
   return db.aiActivity.findMany({ where: { cardId }, include, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+}
+
+export async function linkAiActivityWorkflow(cardId: string, id: string, raw: unknown) {
+  const input = parseInput(z.object({ workflowTagId: identity, applyToAll: z.boolean().default(false) }).strict(), raw);
+  return serializable(async tx => {
+    const activity = await tx.aiActivity.findUnique({ where: { id }, include });
+    if (!activity || activity.cardId !== cardId) throw new DomainError("Atividade não encontrada", 404);
+    const workflow = await tx.workflow.findUnique({ where: { id: input.workflowTagId } });
+    if (!workflow) throw new DomainError("Workflow não encontrado", 404);
+    if (!workflow.active) throw new DomainError("Workflow desativado", 409);
+    const unassigned = activity.workflowTagId === null && activity.workflowId === null && activity.workflowName === null;
+    const sameAssignment = activity.workflowAssigned && activity.workflowTagId === workflow.id;
+    if (!unassigned && !sameAssignment) throw new DomainError("Atividade já possui identificação de workflow", 409);
+
+    // O filtro de ausência de identidade protege inclusive IDs externos não cadastrados.
+    const where = {
+      ...(input.applyToAll ? { type: activity.type } : { id, cardId }),
+      workflowTagId: null, workflowId: null, workflowName: null,
+    };
+    const now = new Date();
+    // Atualiza os cards antes de preencher os vínculos, enquanto o filtro identifica o mesmo conjunto.
+    await tx.card.updateMany({ where: { aiActivities: { some: where } }, data: { updatedAt: now } });
+    const updated = await tx.aiActivity.updateMany({ where, data: {
+      workflowTagId: workflow.id, workflowName: workflow.name, workflowAssigned: true,
+    } });
+    if (input.applyToAll) {
+      await tx.workflowDefault.upsert({ where: { type: activity.type },
+        create: { type: activity.type, workflowTagId: workflow.id },
+        update: { workflowTagId: workflow.id },
+      });
+    }
+    return {
+      activity: (await tx.aiActivity.findUnique({ where: { id }, include }))!,
+      updatedCount: updated.count, defaultApplied: input.applyToAll,
+    };
+  });
 }

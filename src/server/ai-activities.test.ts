@@ -4,6 +4,7 @@ const dbMock = vi.hoisted(() => {
   const mock = {
     card: { findUnique: vi.fn(), update: vi.fn() },
     aiActivity: { findUnique: vi.fn(), create: vi.fn() },
+    workflowDefault: { findUnique: vi.fn().mockResolvedValue(null) },
     $transaction: vi.fn(),
   };
   mock.$transaction.mockImplementation((fn) => fn(mock));

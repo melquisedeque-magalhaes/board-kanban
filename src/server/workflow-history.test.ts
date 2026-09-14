@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({ workflows: [] as Record<string, unknown>[], ac
 const matches = (row: Record<string, unknown>, where: Record<string, unknown>) => Object.entries(where).every(([k, v]) => row[k] === v);
 vi.mock("@/lib/db", () => {
   const db = {
+    workflowDefault: { findUnique: async () => null },
     workflow: {
       findUnique: async ({ where }: { where: Record<string, unknown> }) => state.workflows.find(w => matches(w, where)) ?? null,
       findMany: async () => state.workflows,
