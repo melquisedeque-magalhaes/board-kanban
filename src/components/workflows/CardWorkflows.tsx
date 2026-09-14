@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ActivityWorkflowLink } from "./ActivityWorkflowLink";
 import { ACTIVITY_NAMES, STATUS_NAMES, WorkflowTags, workflowRequest, type Workflow, type WorkflowActivity } from "./workflow-ui";
 
 const field = "h-9 min-w-0 rounded-md border border-input bg-background px-2 text-sm";
@@ -57,7 +58,7 @@ export function CardWorkflows({ cardId, onChanged }: { cardId: string; onChanged
     </form>}
     {activities.data?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma participação registrada.</p>}
     <ol className="grid gap-2">{[...(activities.data ?? [])].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)).map((activity) => <li key={activity.id} className="grid gap-1 rounded-md border p-3 text-sm">
-      <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{ACTIVITY_NAMES[activity.type]} · {activity.workflowName ?? activity.workflow?.name ?? activity.workflowId ?? "Workflow não informado"}</span><span>{STATUS_NAMES[activity.status]}</span></div>
+      <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{ACTIVITY_NAMES[activity.type]} · <ActivityWorkflowLink activity={activity} cardId={cardId} onChanged={onChanged} /></span><span>{STATUS_NAMES[activity.status]}</span></div>
       <span className="text-xs text-muted-foreground">Registrado: {date(activity.createdAt)}{activity.startedAt && ` · Início: ${date(activity.startedAt)}`}{activity.finishedAt && ` · Término: ${date(activity.finishedAt)}`}</span>
       {activity.runId && <span className="break-all font-mono text-xs text-muted-foreground">runId: {activity.runId}</span>}
       {activity.status === "RUNNING" && <div className="mt-1 flex flex-wrap gap-1">{(["COMPLETED", "FAILED", "CANCELLED"] as const).map((result) => <Button key={result} size="sm" variant="outline" disabled={busy} onClick={() => save(activity.id, result)}>{result === "COMPLETED" ? "Concluir" : result === "FAILED" ? "Registrar falha" : "Cancelar execução"}</Button>)}</div>}

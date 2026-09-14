@@ -6,6 +6,7 @@ export const STATUS_NAMES = { RUNNING: "Em execução", COMPLETED: "Concluído",
 export type WorkflowActivity = {
   id: string; type: keyof typeof ACTIVITY_NAMES; status: keyof typeof STATUS_NAMES;
   workflow?: Workflow | null; workflowName?: string | null; workflowId?: string | null;
+  workflowTagId?: string | null;
   runId?: string | null; createdAt: string; startedAt?: string | null; finishedAt?: string | null;
 };
 

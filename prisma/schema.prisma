@@ -160,6 +160,7 @@ model AiActivity {
   workflowTagId   String?
   workflow        Workflow?      @relation(fields: [workflowTagId], references: [id], onDelete: Restrict)
   workflowName    String?
+  workflowAssigned Boolean        @default(false)
   status          AiActivityStatus @default(COMPLETED)
   startedAt       DateTime?
   finishedAt      DateTime?
@@ -179,6 +180,14 @@ model Workflow {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   activities AiActivity[]
+  defaults   WorkflowDefault[]
+}
+
+model WorkflowDefault {
+  type          AiActivityType @id
+  workflowTagId String
+  workflow      Workflow @relation(fields: [workflowTagId], references: [id], onDelete: Restrict)
+  updatedAt     DateTime @updatedAt
 }
 
 model Label {
