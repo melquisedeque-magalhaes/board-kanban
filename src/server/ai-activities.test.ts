@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const dbMock = vi.hoisted(() => ({
-  card: { findUnique: vi.fn() },
-  aiActivity: { upsert: vi.fn() },
-}));
+const dbMock = vi.hoisted(() => {
+  const mock = {
+    card: { findUnique: vi.fn(), update: vi.fn() },
+    aiActivity: { findUnique: vi.fn(), create: vi.fn() },
+    $transaction: vi.fn(),
+  };
+  mock.$transaction.mockImplementation((fn) => fn(mock));
+  return mock;
+});
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
 import { recordAiActivity } from "./ai-activities";
@@ -13,15 +18,12 @@ describe("recordAiActivity", () => {
 
   it("registra uma atividade da IA vinculada ao card", async () => {
     dbMock.card.findUnique.mockResolvedValue({ id: "card1" });
-    dbMock.aiActivity.upsert.mockResolvedValue({ id: "activity1", type: "ANALYZED" });
+    dbMock.aiActivity.create.mockImplementation(({ data }) => ({ id: "activity1", ...data }));
 
-    await recordAiActivity({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
+    const result = await recordAiActivity({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed" });
 
-    expect(dbMock.aiActivity.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { idempotencyKey: "run1:analyzed" },
-      create: expect.objectContaining({ cardId: "card1", type: "ANALYZED" }),
-      update: {},
-    }));
+    expect(result).toMatchObject({ cardId: "card1", type: "ANALYZED", idempotencyKey: "run1:analyzed", status: "COMPLETED" });
+    expect(result.finishedAt).toBeInstanceOf(Date);
   });
 
   it("rejeita card inexistente", async () => {

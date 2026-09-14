@@ -36,9 +36,18 @@ enum NotificationType {
 }
 
 enum AiActivityType {
+  CREATED
   ANALYZED
   DEVELOPED
   TESTED
+  REVIEWED
+}
+
+enum AiActivityStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
 }
 
 model Board {
@@ -148,10 +157,28 @@ model AiActivity {
   idempotencyKey  String         @unique
   workflowId      String?
   runId           String?
+  workflowTagId   String?
+  workflow        Workflow?      @relation(fields: [workflowTagId], references: [id], onDelete: Restrict)
+  workflowName    String?
+  status          AiActivityStatus @default(COMPLETED)
+  startedAt       DateTime?
+  finishedAt      DateTime?
   createdAt       DateTime       @default(now())
 
   @@index([type, createdAt])
   @@index([cardId, createdAt])
+  @@index([workflowTagId, status])
+}
+
+model Workflow {
+  id         String       @id @default(cuid())
+  name       String
+  color      String
+  externalId String?      @unique
+  active     Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  activities AiActivity[]
 }
 
 model Label {

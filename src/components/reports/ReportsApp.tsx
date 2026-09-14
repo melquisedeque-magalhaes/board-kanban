@@ -120,10 +120,35 @@ export function ReportsApp({ initial }: { initial: DeliveryReport }) {
 
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Bot className="size-4" /> Atividades da IA</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-3 gap-3">
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard icon={<Bot className="size-5" />} label="Cards únicos com IA" value={r.aiActivities.totalCards} tone="wip" />
+          <StatCard icon={<Bot className="size-5" />} label="Criados" value={r.aiActivities.created} tone="muted" />
           <StatCard icon={<Search className="size-5" />} label="Analisados" value={r.aiActivities.analyzed} tone="muted" />
           <StatCard icon={<Code2 className="size-5" />} label="Desenvolvidos" value={r.aiActivities.developed} tone="wip" />
           <StatCard icon={<FlaskConical className="size-5" />} label="Testados" value={r.aiActivities.tested} tone="done" />
+          <StatCard icon={<CheckCircle2 className="size-5" />} label="Revisados" value={r.aiActivities.reviewed} tone="done" />
+          <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">Cards únicos por atividade concluída. Inclui arquivados, sem filtro temporal; execuções em andamento, falhas e canceladas não entram nos totais.</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Atividades por workflow</CardTitle>
+          <p className="text-xs text-muted-foreground">Um card pode participar de vários workflows. A soma das linhas não representa cards únicos globais.</p>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {r.aiByWorkflow.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma atividade concluída.</p> : (
+            <table className="w-full text-left text-xs">
+              <caption className="sr-only">Cards únicos com atividades concluídas por workflow</caption>
+              <thead><tr className="border-b">{["Workflow", "Criados", "Analisados", "Desenvolvidos", "Testados", "Revisados", "Cards únicos"].map((label) => <th key={label} scope="col" className="px-2 py-3 font-medium whitespace-nowrap">{label}</th>)}</tr></thead>
+              <tbody>{r.aiByWorkflow.map((workflow, index) => (
+                <tr key={`${workflow.workflowId ?? "unknown"}:${index}`} className="border-b last:border-0">
+                  <th scope="row" className="px-2 py-3 font-medium"><span className="inline-flex items-center gap-2"><span className="size-2.5 shrink-0 rounded-full" style={{ background: workflow.color ?? "#888888" }} />{workflow.name}</span></th>
+                  {[workflow.created, workflow.analyzed, workflow.developed, workflow.tested, workflow.reviewed, workflow.totalCards].map((value, index) => <td key={index} className="px-2 py-3 tabular-nums">{value}</td>)}
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
         </CardContent>
       </Card>
 

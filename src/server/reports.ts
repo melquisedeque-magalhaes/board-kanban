@@ -31,6 +31,15 @@ export interface OverdueCard {
   assignees: { id: string; name: string }[];
 }
 
+export interface AiCounts {
+  created: number;
+  analyzed: number;
+  developed: number;
+  tested: number;
+  reviewed: number;
+  totalCards: number;
+}
+
 export interface DeliveryReport {
   generatedAt: string;
   totals: {
@@ -45,7 +54,8 @@ export interface DeliveryReport {
   byType: BreakdownRow<CardType | "SEM_TIPO">[];
   byPriority: BreakdownRow<Priority | "SEM_PRIORIDADE">[];
   overdueCards: OverdueCard[];
-  aiActivities: { analyzed: number; developed: number; tested: number };
+  aiActivities: AiCounts;
+  aiByWorkflow: (AiCounts & { workflowId: string | null; name: string; color: string | null })[];
 }
 
 // Relatório de entregas por pessoa e distribuição do board.
@@ -61,15 +71,39 @@ export async function getDeliveryReport(): Promise<DeliveryReport> {
         column: { select: { id: true, name: true } },
       },
     }),
-    db.aiActivity.findMany({ select: { cardId: true, type: true }, distinct: ["cardId", "type"] }),
+    db.aiActivity.findMany({
+      where: { status: "COMPLETED" },
+      select: { cardId: true, type: true, workflowId: true, workflowTagId: true,
+        workflow: { select: { id: true, name: true, color: true } } },
+      distinct: ["cardId", "type", "workflowTagId", "workflowId"],
+    }),
   ]);
 
-  const aiActivities = { analyzed: 0, developed: 0, tested: 0 };
+  const emptyCounts = (): AiCounts => ({ created: 0, analyzed: 0, developed: 0, tested: 0, reviewed: 0, totalCards: 0 });
+  const aiActivities = emptyCounts();
+  const seen = new Set<string>();
+  const seenCards = new Set<string>();
+  const workflows = new Map<string, { row: DeliveryReport["aiByWorkflow"][number]; seen: Set<string>; cards: Set<string> }>();
   for (const activity of aiActivityGroups) {
-    if (activity.type === "ANALYZED") aiActivities.analyzed += 1;
-    if (activity.type === "DEVELOPED") aiActivities.developed += 1;
-    if (activity.type === "TESTED") aiActivities.tested += 1;
+    const field = activity.type.toLowerCase() as Exclude<keyof AiCounts, "totalCards">;
+    const identity = JSON.stringify([activity.cardId, activity.type]);
+    if (!seen.has(identity)) { aiActivities[field] += 1; seen.add(identity); }
+    seenCards.add(activity.cardId);
+    const workflowId = activity.workflowTagId ?? activity.workflowId ?? null;
+    const groupKey = JSON.stringify([activity.workflowTagId ? "registered" : "legacy", workflowId]);
+    let group = workflows.get(groupKey);
+    if (!group) {
+      group = { row: { ...emptyCounts(), workflowId,
+        name: activity.workflow?.name ?? (activity.workflowId ? `Legado: ${activity.workflowId}` : "Workflow não informado"),
+        color: activity.workflow?.color ?? null }, seen: new Set(), cards: new Set() };
+      workflows.set(groupKey, group);
+    }
+    if (!group.seen.has(identity)) { group.row[field] += 1; group.seen.add(identity); }
+    group.cards.add(activity.cardId);
+    group.row.totalCards = group.cards.size;
   }
+  aiActivities.totalCards = seenCards.size;
+  const aiByWorkflow = [...workflows.values()].map(({ row }) => row).sort((a, b) => a.name.localeCompare(b.name));
 
   const doneCol = new Set(columns.filter((c) => isDoneName(c.name)).map((c) => c.id));
   const cancelCol = new Set(columns.filter((c) => isCancelName(c.name)).map((c) => c.id));
@@ -144,5 +178,6 @@ export async function getDeliveryReport(): Promise<DeliveryReport> {
       .filter((r) => r.delivered + r.wip > 0),
     overdueCards: overdueCards.sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
     aiActivities,
+    aiByWorkflow,
   };
 }

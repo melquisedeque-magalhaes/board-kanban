@@ -110,7 +110,7 @@ Acesse [http://localhost:3000](http://localhost:3000) em seu navegador.
 
 - **UI** (`src/app/`): Página Next.js com React Server Components e Client Components
 - **API REST** (`src/app/api/`): Rotas CRUD para colunas, cards e comentários
-- **MCP Server** (`src/mcp/`): Servidor MCP com 9 ferramentas
+- **MCP Server** (`src/mcp/`): Servidor MCP com 32 ferramentas
 - **Domain** (`src/server/`): Lógica compartilhada consumida por REST e MCP
 - **Database** (`src/lib/db.ts`): Cliente Prisma com adaptador PrismaPg
 - **Lib** (`src/lib/`): Utilitários (posicionamento, tipos, etc.)
@@ -161,12 +161,32 @@ O board e a REST API ficam **atrás de login** (Clerk). O `/api/mcp` **NÃO** �
 - **User**: Usuário que pode ser assignee ou autor de comentários
 - **Label**: Tag para categorizar cards
 - **Comment**: Comentário em um card
+- **Workflow**: Cadastro de workflows com nome, cor, estado ativo e identificador externo opcional
+- **AiActivity**: Participação de um workflow no card, com atividade, execução, estado e snapshot do nome
 
 ### Enums
 
 - **Priority**: `ALTA`, `MEDIA`, `BAIXA`
 
 ## MCP Server
+
+### Workflows e histórico de IA
+
+O cadastro `/workflows` permite criar, editar e desativar workflows; não dispara automações. O drawer do card permite registrar participações e consultar o histórico. O indicador de robô considera o marcador manual `bot` ou qualquer participação `RUNNING`. Encerrar uma execução não encerra outras execuções do mesmo card.
+
+Contrato MCP para integrações:
+
+1. Use `list_workflows`, `create_workflow` e `update_workflow` para gerenciar o cadastro. `externalId` é opcional e único; `color` usa hexadecimal `#RRGGBB`.
+2. Inicie com `start_ai_activity({ cardId, workflowTagId, type, idempotencyKey, runId? })`. `workflowTagId` é o ID retornado pelo cadastro. `type` aceita `CREATED`, `ANALYZED`, `DEVELOPED`, `TESTED` e `REVIEWED`. O estado inicial é `RUNNING`; `status: "COMPLETED"` permite registro direto de conclusão.
+3. Encerre usando o ID retornado: `finish_ai_activity({ cardId, activityId, status: "COMPLETED" })`. Também aceita `FAILED` e `CANCELLED`. Consulte com `list_ai_activities({ cardId })`.
+
+Repetições com mesma chave e payload retornam o registro existente. Reutilizar a chave para outra identidade gera conflito; cada tentativa nova exige nova chave. Um resultado terminal não pode ser trocado. Desativar workflow bloqueia novos inícios, mas permite finalizar execuções existentes. Renomear atualiza a tag, preservando o nome original no histórico.
+
+`record_ai_activity({ cardId, type, idempotencyKey, workflowId?, runId? })` permanece compatível e registra conclusão direta. Seu `workflowId` continua sendo o identificador externo legado. Registros antigos são tratados como concluídos, sem inventar datas de início ou atribuição ausente.
+
+REST autenticado por sessão Clerk: `GET/POST /api/workflows`, `PATCH /api/workflows/:id`, `GET/POST /api/cards/:id/ai-activities` e `PATCH /api/cards/:id/ai-activities/:activityId`. POST de atividade recebe os mesmos campos de `start_ai_activity`, exceto `cardId`, obtido da URL. PATCH de atividade recebe `{ "status": "COMPLETED" | "FAILED" | "CANCELLED" }`. Respostas de erro: 400 para entrada inválida, 401 sem sessão, 404 para identificador desconhecido e 409 para conflito.
+
+`get_delivery_report` mantém `aiActivities.analyzed/developed/tested` e acrescenta `created`, `reviewed`, `totalCards` e o detalhamento `aiByWorkflow`. Apenas `COMPLETED` conta. Cards são únicos por atividade e no total global; por workflow, um card pode contar em várias linhas. Inclui cards arquivados e não aplica filtro temporal. Legados são agrupados pelo `workflowId` externo quando informado; registros sem atribuição aparecem em “Workflow não informado”. A integração automática exige que cada workflow consumidor envie seus eventos.
 
 O servidor MCP está disponível em `POST|GET|DELETE /api/mcp` e protegido por autenticação Bearer.
 

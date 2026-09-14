@@ -4,11 +4,13 @@ import * as cards from "@/server/cards";
 import * as columns from "@/server/columns";
 import { getDeliveryReport } from "@/server/reports";
 import { purgeBlobs } from "@/server/blobs";
-import { recordAiActivity } from "@/server/ai-activities";
+import { recordAiActivity, startAiActivity, finishAiActivity, listAiActivities } from "@/server/ai-activities";
+import { listWorkflows, createWorkflow, updateWorkflow } from "@/server/workflows";
 
 const priority = z.enum(["CRITICA", "ALTA", "MEDIA", "BAIXA"]);
 const cardType = z.enum(["BUG", "FEATURE", "TAREFA", "SUBTASK"]);
 const blocker = z.enum(["IMPEDIMENTO", "AVISO", "AJUSTES"]);
+const activityType = z.enum(["CREATED", "ANALYZED", "DEVELOPED", "TESTED", "REVIEWED"]);
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
@@ -262,7 +264,7 @@ export function buildMcpServer() {
     "set_card_bot",
     {
       description:
-        "Marca ou desmarca o card como 'em operação por um robô' — o card ganha ícone e moldura própria no board, avisando que um agente já pegou a tarefa. Marque ao começar a trabalhar no card e desmarque ao terminar. Nenhuma outra tool liga essa marca sozinha.",
+        "Liga/desliga o marcador manual de robô. Participações RUNNING também mantêm o indicador ativo; desligar o marcador manual não encerra essas execuções. Use start_ai_activity e finish_ai_activity para registrar workflow e histórico.",
       inputSchema: {
         id: z.string(),
         bot: z.boolean().describe("true marca como em operação; false desmarca"),
@@ -371,7 +373,7 @@ export function buildMcpServer() {
     "get_delivery_report",
     {
       description:
-        "Relatório de entregas do time: totais (entregues/WIP/vencidos/sem responsável), atividades da IA (cards analisados/desenvolvidos/testados), entregas por pessoa, distribuição por coluna, breakdown por tipo e prioridade, e lista de cards vencidos. 'Entregue' = card em coluna de conclusão (Done/Concluído); WIP = ativo fora de done/cancelado. Sem histórico de movimentação, o estado é o atual.",
+        "Relatório de entregas do time e IA: cards criados/analisados/desenvolvidos/testados/revisados, total de cards únicos com IA e aiByWorkflow. IA conta somente COMPLETED, incluindo arquivados, sem filtro temporal. Um card conta uma vez por atividade globalmente e por workflow; a soma por workflow não representa cards únicos globais. Entregue = coluna Done/Concluído; WIP = ativo fora de done/cancelado.",
       inputSchema: {},
     },
     async () => json(await getDeliveryReport()),
@@ -383,7 +385,7 @@ export function buildMcpServer() {
       description: "Registra atividade concluída pela IA em um card, sem duplicar a mesma operação",
       inputSchema: {
         cardId: z.string(),
-        type: z.enum(["ANALYZED", "DEVELOPED", "TESTED"]),
+        type: activityType,
         idempotencyKey: z.string().describe("Chave única da atividade no workflow/run"),
         workflowId: z.string().optional(),
         runId: z.string().optional(),
@@ -392,6 +394,35 @@ export function buildMcpServer() {
     async ({ cardId, type, idempotencyKey, workflowId, runId }) =>
       json(await recordAiActivity({ cardId, type, idempotencyKey, workflowId, runId })),
   );
+
+  s.registerTool("list_workflows", {
+    description: "Lista o cadastro de workflows, incluindo inativos e seus identificadores externos.", inputSchema: {},
+  }, async () => json(await listWorkflows()));
+
+  s.registerTool("create_workflow", {
+    description: "Cadastra um workflow para atribuir atividades e tags aos cards; não dispara automações.",
+    inputSchema: { name: z.string(), color: z.string(), active: z.boolean().optional(), externalId: z.string().nullable().optional() },
+  }, async (input) => json(await createWorkflow(input)));
+
+  s.registerTool("update_workflow", {
+    description: "Edita nome, cor ou identificador externo; desativar impede novos inícios e preserva histórico e encerramentos.",
+    inputSchema: { id: z.string(), name: z.string().optional(), color: z.string().optional(), active: z.boolean().optional(), externalId: z.string().nullable().optional() },
+  }, async ({ id, ...input }) => json(await updateWorkflow(id, input)));
+
+  s.registerTool("start_ai_activity", {
+    description: "Inicia participação de workflow cadastrado (RUNNING), ou registra conclusão direta com status COMPLETED. Repetição com mesma chave/payload é idempotente; nova tentativa exige nova chave.",
+    inputSchema: { cardId: z.string(), workflowTagId: z.string().describe("ID do cadastro de workflows, não o identificador externo"), type: activityType, idempotencyKey: z.string(), runId: z.string().optional(), status: z.enum(["RUNNING", "COMPLETED"]).optional() },
+  }, async (input) => json(await startAiActivity(input)));
+
+  s.registerTool("finish_ai_activity", {
+    description: "Encerra participação RUNNING. Repetir o mesmo resultado é idempotente; trocar resultado terminal é conflito. Somente COMPLETED conta nos relatórios.",
+    inputSchema: { cardId: z.string(), activityId: z.string(), status: z.enum(["COMPLETED", "FAILED", "CANCELLED"]) },
+  }, async ({ cardId, activityId, status }) => json(await finishAiActivity(cardId, activityId, status)));
+
+  s.registerTool("list_ai_activities", {
+    description: "Histórico de participações de IA no card, incluindo execuções ativas, falhas, canceladas e registros legados.",
+    inputSchema: { cardId: z.string() },
+  }, async ({ cardId }) => json(await listAiActivities(cardId)));
 
   return s;
 }
