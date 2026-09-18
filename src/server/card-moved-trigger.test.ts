@@ -35,4 +35,16 @@ describe("dispatchCardMoved", () => {
 
     await expect(dispatchCardMoved("card1", { id: "dev", name: "Desenvolvimento" }, { id: "test", name: "Aguardando Teste" })).resolves.toBeUndefined();
   });
+
+  it("deduplica o mesmo webhook cadastrado mais de uma vez", async () => {
+    dbMock.workflowTrigger.findMany.mockResolvedValue([
+      { webhookUrl: "https://fusion-agents-dev.brq.com/api/hooks/token" },
+      { webhookUrl: "https://fusion-agents-dev.brq.com/api/hooks/token" },
+    ]);
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 202 }));
+
+    await dispatchCardMoved("card1", { id: "dev", name: "Desenvolvimento" }, { id: "test", name: "Aguardando Teste" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

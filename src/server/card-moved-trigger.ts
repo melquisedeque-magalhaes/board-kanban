@@ -7,7 +7,8 @@ const timeoutMs = 5_000;
 /** Sends a cross-column card move after the database transaction has committed. */
 export async function dispatchCardMoved(cardId: string, fromColumn: ColumnRef, toColumn: ColumnRef): Promise<void> {
   const triggers = await db.workflowTrigger.findMany({ where: { event: "card.moved", enabled: true }, select: { webhookUrl: true } });
-  await Promise.all(triggers.map(({ webhookUrl }) => dispatchToEndpoint(webhookUrl, cardId, fromColumn, toColumn)));
+  const endpoints = [...new Set(triggers.map(({ webhookUrl }) => webhookUrl.trim()))];
+  await Promise.all(endpoints.map((endpoint) => dispatchToEndpoint(endpoint, cardId, fromColumn, toColumn)));
 }
 
 async function dispatchToEndpoint(endpoint: string, cardId: string, fromColumn: ColumnRef, toColumn: ColumnRef): Promise<void> {

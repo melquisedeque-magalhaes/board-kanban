@@ -14,12 +14,25 @@ export function validateWebhookUrl(value: string) {
 }
 
 export function listTriggers() { return db.workflowTrigger.findMany({ orderBy: { createdAt: "desc" } }); }
-export function createTrigger(input: { name: string; event: TriggerEvent; webhookUrl: string }) {
-  if (!validateWebhookUrl(input.webhookUrl)) throw new Error("URL deve ser um webhook oficial do Fusion Agents");
-  return db.workflowTrigger.create({ data: { name: input.name.trim(), event: input.event, webhookUrl: input.webhookUrl.trim() } });
+async function ensureTriggerIsUnique(event: TriggerEvent, webhookUrl: string, excludeId?: string) {
+  const duplicate = await db.workflowTrigger.findFirst({
+    where: { event, webhookUrl, ...(excludeId ? { NOT: { id: excludeId } } : {}) },
+    select: { id: true },
+  });
+  if (duplicate) throw new Error("Já existe um trigger para este evento e webhook");
 }
-export function updateTrigger(id: string, input: { name?: string; event?: TriggerEvent; webhookUrl?: string; enabled?: boolean }) {
+export async function createTrigger(input: { name: string; event: TriggerEvent; webhookUrl: string }) {
+  if (!validateWebhookUrl(input.webhookUrl)) throw new Error("URL deve ser um webhook oficial do Fusion Agents");
+  const webhookUrl = input.webhookUrl.trim();
+  await ensureTriggerIsUnique(input.event, webhookUrl);
+  return db.workflowTrigger.create({ data: { name: input.name.trim(), event: input.event, webhookUrl } });
+}
+export async function updateTrigger(id: string, input: { name?: string; event?: TriggerEvent; webhookUrl?: string; enabled?: boolean }) {
   if (input.webhookUrl !== undefined && !validateWebhookUrl(input.webhookUrl)) throw new Error("URL deve ser um webhook oficial do Fusion Agents");
+  if (input.event !== undefined || input.webhookUrl !== undefined) {
+    const current = await db.workflowTrigger.findUnique({ where: { id }, select: { event: true, webhookUrl: true } });
+    if (current) await ensureTriggerIsUnique(input.event ?? current.event as TriggerEvent, input.webhookUrl?.trim() ?? current.webhookUrl, id);
+  }
   return db.workflowTrigger.update({ where: { id }, data: {
     ...(input.name !== undefined && { name: input.name.trim() }),
     ...(input.event !== undefined && { event: input.event }),
