@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { ProfileDialog } from "./ProfileDialog";
+import { BoardSwitcher, type BoardLite } from "./BoardSwitcher";
 import { NotificationCenter } from "./NotificationCenter";
 import { avatarColor, initials } from "./colors";
 import { activeFilterCount, type ViewState, type SortMode } from "./view";
@@ -33,7 +34,11 @@ function UserAvatar({ name, url, className }: { name: string; url?: string | nul
   );
 }
 
-export function Chrome({ view, setView, users, online, openCardId, onOpenCard, onNew, onOpenArchived }: {
+export function Chrome({
+  board, boards, view, setView, users, online, openCardId, onOpenCard, onNew, onOpenArchived,
+}: {
+  board: BoardLite;
+  boards: BoardLite[];
   view: ViewState;
   setView: (v: ViewState) => void;
   users: UserLite[];
@@ -65,7 +70,7 @@ export function Chrome({ view, setView, users, online, openCardId, onOpenCard, o
         <div className="flex items-center gap-2 text-[13px]">
           <span className="text-muted-foreground">🤖 Time de IA</span>
           <span className="text-muted-foreground/50">/</span>
-          <span className="font-medium">Board Time de IA</span>
+          <BoardSwitcher board={board} boards={boards} />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">
@@ -132,8 +137,8 @@ export function Chrome({ view, setView, users, online, openCardId, onOpenCard, o
 
       {/* Title */}
       <div className="flex flex-col gap-1 px-10 pb-1 pt-4">
-        <h1 className="text-3xl font-bold tracking-tight">Board Time de IA</h1>
-        <p className="text-sm text-muted-foreground">Kanban de tarefas do time de IA</p>
+        <h1 className="text-3xl font-bold tracking-tight">{board.name}</h1>
+        {board.description && <p className="text-sm text-muted-foreground">{board.description}</p>}
       </div>
 
       {/* Toolbar */}

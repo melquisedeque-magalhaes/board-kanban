@@ -1,19 +1,9 @@
-import { listColumns, listUsers } from "@/server/cards";
-import { syncCurrentUser } from "@/server/users";
-import { BoardApp } from "@/components/board/BoardApp";
+import { defaultBoard } from "@/server/boards";
+import { BoardScreen } from "@/components/board/BoardScreen";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const me = await syncCurrentUser();
-  const [columns, users] = await Promise.all([listColumns(), listUsers()]);
-  return (
-    <main className="flex h-screen flex-col overflow-hidden">
-      <BoardApp
-        initialColumns={JSON.parse(JSON.stringify(columns))}
-        users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
-        currentUser={me}
-      />
-    </main>
-  );
+  const board = await defaultBoard();
+  return <BoardScreen boardId={board.id} />;
 }

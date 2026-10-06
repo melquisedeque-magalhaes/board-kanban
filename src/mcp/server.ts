@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as cards from "@/server/cards";
 import * as columns from "@/server/columns";
+import * as boards from "@/server/boards";
 import { getDeliveryReport } from "@/server/reports";
 import { purgeBlobs } from "@/server/blobs";
 import { recordAiActivity, startAiActivity, finishAiActivity, listAiActivities } from "@/server/ai-activities";
@@ -11,12 +12,55 @@ const priority = z.enum(["CRITICA", "ALTA", "MEDIA", "BAIXA"]);
 const cardType = z.enum(["BUG", "FEATURE", "TAREFA", "SUBTASK"]);
 const blocker = z.enum(["IMPEDIMENTO", "AVISO", "AJUSTES"]);
 const activityType = z.enum(["CREATED", "ANALYZED", "DEVELOPED", "TESTED", "REVIEWED"]);
+// Board é opcional em toda tool: sem ele vale o board principal (o mais
+// antigo), que é o comportamento de antes de existir mais de um board.
+const boardRef = z.string().optional().describe(
+  "Board (id ou nome) — veja list_boards. Omitido = board principal",
+);
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
 
 export function buildMcpServer() {
   const s = new McpServer({ name: "board-kanban", version: "1.0.0" });
+
+  s.registerTool(
+    "list_boards",
+    {
+      description: "Lista os boards (id, nome, descrição). O primeiro é o principal, usado quando a tool não recebe board.",
+      inputSchema: {},
+    },
+    async () => json(await boards.listBoards()),
+  );
+
+  s.registerTool(
+    "create_board",
+    {
+      description:
+        "Cria um board novo para uma situação específica. Colunas: copia de outro board " +
+        `(copyColumnsFrom), usa a lista informada (columns) ou o básico: ${boards.BASIC_COLUMNS.join(", ")}.`,
+      inputSchema: {
+        name: z.string().describe("Nome do board (não pode repetir um existente)"),
+        description: z.string().optional(),
+        copyColumnsFrom: z.string().optional().describe("Board (id ou nome) cujas colunas serão copiadas"),
+        columns: z.array(z.string()).optional().describe("Nomes das colunas, na ordem"),
+      },
+    },
+    async (input) => json(await boards.createBoard(input)),
+  );
+
+  s.registerTool(
+    "update_board",
+    {
+      description: "Renomeia um board e/ou troca a descrição",
+      inputSchema: {
+        id: z.string(),
+        name: z.string().optional(),
+        description: z.string().nullable().optional(),
+      },
+    },
+    async ({ id, name, description }) => json(await boards.updateBoard(id, { name, description })),
+  );
 
   // Devolve a CONTAGEM de cards, não os cards. Antes chamava cards.listColumns()
   // — a query da UI, que embute todo card com details — e o resultado eram
@@ -28,9 +72,9 @@ export function buildMcpServer() {
       description:
         "Lista as colunas do board com a contagem de cards não arquivados de cada uma. " +
         "NÃO traz os cards — para eles use list_cards (paginado) ou get_card/get_card_by_code.",
-      inputSchema: {},
+      inputSchema: { board: boardRef },
     },
-    async () => json(await cards.listColumnsSummary()),
+    async ({ board }) => json(await cards.listColumnsSummary(board)),
   );
 
   s.registerTool(
@@ -40,9 +84,10 @@ export function buildMcpServer() {
       inputSchema: {
         name: z.string().describe("Nome da coluna (não pode repetir uma existente)"),
         color: z.string().optional().describe("Cor do chip em hex, ex.: #d3e5ef"),
+        board: boardRef,
       },
     },
-    async ({ name, color }) => json(await columns.createColumn({ name, color })),
+    async ({ name, color, board }) => json(await columns.createColumn({ name, color, board })),
   );
 
   s.registerTool(
@@ -95,8 +140,10 @@ export function buildMcpServer() {
         "O resumo não inclui a descrição (details) nem a documentação do card — para o corpo " +
         `use get_card ou get_card_by_code. Resposta: { total, offset, limit, hasMore, cards }. ` +
         `Padrão de ${cards.MCP_LIST_DEFAULT_LIMIT} cards por página, máximo ${cards.MCP_LIST_MAX_LIMIT}; ` +
-        "quando hasMore for true, avance o offset em vez de concluir sobre a página parcial.",
+        "quando hasMore for true, avance o offset em vez de concluir sobre a página parcial. " +
+        "Sem board e sem coluna, busca em todos os boards; columnName resolve no board informado (ou no principal).",
       inputSchema: {
+        board: z.string().optional().describe("Board (id ou nome). Omitido = todos os boards"),
         columnId: z.string().optional(),
         columnName: z.string().optional(),
         assignee: z.string().optional().describe("id, nome ou e-mail do responsável"),
@@ -139,8 +186,9 @@ export function buildMcpServer() {
   s.registerTool(
     "create_card",
     {
-      description: "Cria um card numa coluna",
+      description: "Cria um card numa coluna. columnName resolve no board informado (ou no principal).",
       inputSchema: {
+        board: boardRef,
         columnId: z.string().optional(),
         columnName: z.string().optional(),
         title: z.string(),
@@ -231,9 +279,10 @@ export function buildMcpServer() {
           `Cards por página (padrão ${cards.MCP_LIST_DEFAULT_LIMIT}, máximo ${cards.MCP_LIST_MAX_LIMIT})`,
         ),
         offset: z.number().int().optional().describe("Quantos cards pular (padrão 0)"),
+        board: z.string().optional().describe("Board (id ou nome). Omitido = todos os boards"),
       },
     },
-    async ({ limit, offset }) => json(await cards.listArchivedCardsSummary({ limit, offset })),
+    async ({ limit, offset, board }) => json(await cards.listArchivedCardsSummary({ limit, offset }, board)),
   );
 
   s.registerTool(
@@ -276,7 +325,9 @@ export function buildMcpServer() {
   s.registerTool(
     "move_card",
     {
-      description: "Move um card para outra coluna/posição",
+      description:
+        "Move um card para outra coluna/posição. columnName resolve no board atual do card; " +
+        "para levar o card a outro board, passe o columnId da coluna de destino.",
       inputSchema: {
         id: z.string(),
         columnId: z.string().optional(),

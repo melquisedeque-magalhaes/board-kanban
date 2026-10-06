@@ -22,7 +22,9 @@ async function main() {
     return;
   }
 
-  const board = await db.board.create({ data: { name: "Board Time de IA" } });
+  const board = await db.board.create({
+    data: { name: "Board Time de IA", description: "Kanban de tarefas do time de IA" },
+  });
   for (let i = 0; i < COLUMNS.length; i++) {
     await db.column.create({
       data: { boardId: board.id, name: COLUMNS[i], position: (i + 1) * 1000 },
