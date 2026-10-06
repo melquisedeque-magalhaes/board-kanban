@@ -7,11 +7,12 @@ import { Chrome, type UserLite } from "./Chrome";
 import { CardDialog } from "./CardDialog";
 import { CardDrawer } from "./CardDrawer";
 import { ArchivedDrawer } from "./ArchivedDrawer";
+import type { BoardLite } from "./BoardSwitcher";
 import type { ColumnData } from "./Column";
 import { EMPTY_VIEW, type ViewState } from "./view";
 
-async function fetchColumns(): Promise<ColumnData[]> {
-  const r = await fetch("/api/columns");
+async function fetchColumns(boardId: string): Promise<ColumnData[]> {
+  const r = await fetch(`/api/columns?board=${encodeURIComponent(boardId)}`);
   if (!r.ok) throw new Error("columns");
   return r.json();
 }
@@ -24,13 +25,15 @@ async function beatPresence(): Promise<UserLite[]> {
 
 // Assinatura barata do board (ts + contadores). Pollamos ISSO a cada 3s em vez
 // do board inteiro; só refetchamos /api/columns quando a versão muda.
-async function fetchBoardVersion(): Promise<string> {
-  const r = await fetch("/api/board/version");
+async function fetchBoardVersion(boardId: string): Promise<string> {
+  const r = await fetch(`/api/board/version?board=${encodeURIComponent(boardId)}`);
   if (!r.ok) throw new Error("version");
   return (await r.json()).version as string;
 }
 
-export function BoardApp({ initialColumns, users, currentUser }: {
+export function BoardApp({ board, boards, initialColumns, users, currentUser }: {
+  board: BoardLite;
+  boards: BoardLite[];
   initialColumns: ColumnData[];
   users: UserLite[];
   currentUser: { id: string; name: string; avatarUrl: string | null } | null;
@@ -57,9 +60,13 @@ export function BoardApp({ initialColumns, users, currentUser }: {
   // Pausa o polling/refocus quando há interação em andamento (não atropela).
   const busy = dragging || createCol !== null || openCard !== null || archivedOpen;
 
+  // A chave carrega o board: trocar de board não reaproveita o cache do outro.
+  // Invalidar ["columns"] continua pegando todas (match por prefixo).
+  const columnsKey = useMemo(() => ["columns", board.id], [board.id]);
+
   const { data: columns = initialColumns } = useQuery({
-    queryKey: ["columns"],
-    queryFn: fetchColumns,
+    queryKey: columnsKey,
+    queryFn: () => fetchColumns(board.id),
     initialData: initialColumns,
     // Sem polling direto: o board pesado só é refetchado quando a versão muda.
     refetchInterval: false,
@@ -69,9 +76,9 @@ export function BoardApp({ initialColumns, users, currentUser }: {
   // Poll barato da versão; ao mudar, invalida o board (dispara 1 refetch pesado).
   const prevVersion = useRef<string | undefined>(undefined);
   useQuery({
-    queryKey: ["board-version"],
+    queryKey: ["board-version", board.id],
     queryFn: async () => {
-      const v = await fetchBoardVersion();
+      const v = await fetchBoardVersion(board.id);
       if (prevVersion.current !== undefined && prevVersion.current !== v) {
         qc.invalidateQueries({ queryKey: ["columns"] });
       }
@@ -90,8 +97,8 @@ export function BoardApp({ initialColumns, users, currentUser }: {
 
   // Otimista (drag): escreve direto no cache. Refetch: invalida.
   const setColumns = useCallback(
-    (c: ColumnData[]) => qc.setQueryData(["columns"], c),
-    [qc],
+    (c: ColumnData[]) => qc.setQueryData(columnsKey, c),
+    [qc, columnsKey],
   );
   const refetch = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["columns"] });
@@ -134,9 +141,9 @@ export function BoardApp({ initialColumns, users, currentUser }: {
   const addColumn = useCallback(async (name: string) => {
     await mutateColumn("/api/columns", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, board: board.id }),
     }, "Falha ao criar coluna");
-  }, [mutateColumn]);
+  }, [mutateColumn, board.id]);
 
   const patchColumn = useCallback((id: string, data: Record<string, unknown>, fallback: string) =>
     mutateColumn(`/api/columns/${id}`, {
@@ -157,6 +164,8 @@ export function BoardApp({ initialColumns, users, currentUser }: {
   return (
     <>
       <Chrome
+        board={board}
+        boards={boards}
         view={view}
         setView={setView}
         users={users}
@@ -199,6 +208,7 @@ export function BoardApp({ initialColumns, users, currentUser }: {
         onOpen={setOpenCard}
       />
       <ArchivedDrawer
+        boardId={board.id}
         open={archivedOpen}
         onClose={() => setArchivedOpen(false)}
         onChanged={refetch}

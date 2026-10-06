@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
-  board: { findFirst: vi.fn() },
+  board: { findFirst: vi.fn(), findUnique: vi.fn() },
   column: {
     findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(),
     create: vi.fn(), update: vi.fn(), delete: vi.fn(),
@@ -16,6 +16,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   dbMock.board.findFirst.mockResolvedValue({ id: "b1" });
   dbMock.column.findFirst.mockResolvedValue(null);
+  dbMock.column.findUnique.mockResolvedValue({ id: "c1", boardId: "b1" });
   dbMock.column.findMany.mockResolvedValue([]);
   dbMock.card.count.mockResolvedValue(0);
 });
@@ -59,7 +60,7 @@ describe("updateColumn", () => {
   it("renomeia sem colidir com a própria coluna", async () => {
     await updateColumn("c1", { name: "Teste" });
     expect(dbMock.column.findFirst).toHaveBeenCalledWith({
-      where: { name: "Teste", id: { not: "c1" } },
+      where: { boardId: "b1", name: "Teste", id: { not: "c1" } },
     });
     expect(dbMock.column.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "c1" }, data: expect.objectContaining({ name: "Teste" }),

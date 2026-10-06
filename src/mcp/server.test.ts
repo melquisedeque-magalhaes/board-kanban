@@ -43,6 +43,13 @@ vi.mock("@/server/cards", () => ({
   MCP_LIST_DEFAULT_LIMIT: 50,
   MCP_LIST_MAX_LIMIT: 200,
 }));
+const boardCalls = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn() }));
+vi.mock("@/server/boards", () => ({
+  BASIC_COLUMNS: ["A Fazer", "Em Andamento", "Concluído"],
+  listBoards: boardCalls.list,
+  createBoard: boardCalls.create,
+  updateBoard: boardCalls.update,
+}));
 vi.mock("@/server/columns", () => ({
   createColumn: vi.fn(),
   updateColumn: vi.fn(),
@@ -58,7 +65,7 @@ describe("buildMcpServer", () => {
     expect(s).toBeTruthy();
   });
 
-  it("registra exatamente as 32 tools esperadas", () => {
+  it("registra exatamente as 35 tools esperadas", () => {
     const s = buildMcpServer();
     const registered = (s as unknown as { _registeredTools: Record<string, unknown> })
       ._registeredTools;
@@ -71,6 +78,7 @@ describe("buildMcpServer", () => {
         "record_ai_activity", "set_card_bot", "unarchive_card", "unassign_card", "update_card", "update_column",
         "update_comment",
         "list_workflows", "create_workflow", "update_workflow", "start_ai_activity", "finish_ai_activity", "list_ai_activities",
+        "list_boards", "create_board", "update_board",
       ].sort(),
     );
   });
@@ -180,6 +188,20 @@ describe("buildMcpServer", () => {
     expect(listColumnsSummary).toHaveBeenCalled();
   });
 
+  it("list_columns repassa o board pedido", async () => {
+    listColumnsSummary.mockClear();
+    await listCallback("list_columns")({ board: "Incidente X" });
+    expect(listColumnsSummary).toHaveBeenCalledWith("Incidente X");
+  });
+
+  it("create_board repassa nome, descrição e origem das colunas", async () => {
+    const s = buildMcpServer();
+    const tools = (s as unknown as { _registeredTools: Record<string, Tool> })._registeredTools;
+    boardCalls.create.mockResolvedValue({ id: "b2", name: "Incidente X" });
+    await tools.create_board.handler({ name: "Incidente X", copyColumnsFrom: "b1" });
+    expect(boardCalls.create).toHaveBeenCalledWith({ name: "Incidente X", copyColumnsFrom: "b1" });
+  });
+
   it("list_cards repassa limit e offset para a versão paginada", async () => {
     listCardsSummary.mockClear();
     await listCallback("list_cards")({ columnName: "A Fazer", limit: 10, offset: 20 });
@@ -206,7 +228,7 @@ describe("buildMcpServer", () => {
   it("list_archived_cards usa a versão paginada", async () => {
     listArchivedCardsSummary.mockClear();
     await listCallback("list_archived_cards")({ limit: 5 });
-    expect(listArchivedCardsSummary).toHaveBeenCalledWith({ limit: 5, offset: undefined });
+    expect(listArchivedCardsSummary).toHaveBeenCalledWith({ limit: 5, offset: undefined }, undefined);
   });
 
   it("nenhuma outra tool liga a marca de robô por conta própria", async () => {

@@ -50,11 +50,14 @@ enum AiActivityStatus {
   CANCELLED
 }
 
+// O board mais antigo é o default: é o que `/` abre e o que MCP/API usam
+// quando ninguém informa board.
 model Board {
-  id        String   @id @default(cuid())
-  name      String
-  columns   Column[]
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  columns     Column[]
+  createdAt   DateTime @default(now())
 }
 
 model Column {
@@ -66,6 +69,8 @@ model Column {
   position      Float
   cards         Card[]
   subscriptions ColumnSubscription[]
+
+  @@index([boardId, position])
 }
 
 model Card {

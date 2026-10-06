@@ -25,7 +25,8 @@ interface ArchivedCard {
   column: { name: string };
 }
 
-export function ArchivedDrawer({ open, onClose, onChanged }: {
+export function ArchivedDrawer({ boardId, open, onClose, onChanged }: {
+  boardId: string;
   open: boolean;
   onClose: () => void;
   onChanged: () => void;
@@ -35,10 +36,10 @@ export function ArchivedDrawer({ open, onClose, onChanged }: {
   const [deleting, setDeleting] = useState(false);
 
   const { data: cards = [], isLoading } = useQuery({
-    queryKey: ["archived"],
+    queryKey: ["archived", boardId],
     enabled: open,
     queryFn: async (): Promise<ArchivedCard[]> => {
-      const r = await fetch("/api/cards/archived");
+      const r = await fetch(`/api/cards/archived?board=${encodeURIComponent(boardId)}`);
       return r.ok ? r.json() : [];
     },
   });

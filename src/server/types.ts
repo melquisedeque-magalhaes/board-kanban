@@ -2,6 +2,9 @@ import type { Priority, CardType, Blocker } from "@prisma/client";
 export type { Priority, CardType, Blocker };
 
 export interface CardFilter {
+  /** id ou nome do board. Escopa a busca e o columnName; sem ele, columnName
+   *  resolve no board default e a busca sem coluna varre todos os boards. */
+  board?: string;
   columnId?: string;
   columnName?: string;
   assignee?: string; // nome ou id
@@ -9,6 +12,7 @@ export interface CardFilter {
   type?: CardType;
 }
 export interface CreateCardInput {
+  board?: string; // id ou nome; escopa columnName (default: board principal)
   columnId?: string;
   columnName?: string;
   title: string;

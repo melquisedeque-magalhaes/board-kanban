@@ -9,6 +9,7 @@ export async function GET(req: Request) {
   if (unauth) return unauth;
   const sp = new URL(req.url).searchParams;
   const cards = await listCards({
+    board: sp.get("board") ?? undefined,
     columnId: sp.get("columnId") ?? undefined,
     assignee: sp.get("assignee") ?? undefined,
     priority: (sp.get("priority") as Priority) ?? undefined,

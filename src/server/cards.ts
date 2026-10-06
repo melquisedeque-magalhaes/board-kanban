@@ -7,6 +7,7 @@ import type {
 import { notifyBlockerChange, notifyCardMoved, notifyComment } from "./notifications";
 import { dispatchCardCreated } from "./card-created-trigger";
 import { dispatchCardMoved } from "./card-moved-trigger";
+import { resolveBoardId } from "./boards";
 
 // Bloqueios que impedem o card de mudar de coluna (reorder na mesma coluna é livre).
 const BLOCKING_MOVE: Blocker[] = ["IMPEDIMENTO", "AJUSTES"];
@@ -26,14 +27,24 @@ const cardInclude = {
   _count: { select: { comments: true } },
 } as const;
 
-export async function resolveColumnId(ref: { columnId?: string; columnName?: string }): Promise<string> {
+// Nome de coluna só é único dentro do board, então o nome resolve no board
+// informado (ou no default). Id é global e dispensa o board.
+async function findColumnIdByName(name: string, board?: string): Promise<string | undefined> {
+  const boardId = await resolveBoardId(board);
+  const c = await db.column.findFirst({ where: { boardId, name }, select: { id: true } });
+  return c?.id;
+}
+
+export async function resolveColumnId(
+  ref: { columnId?: string; columnName?: string; board?: string },
+): Promise<string> {
   if (ref.columnId) {
     const c = await db.column.findUnique({ where: { id: ref.columnId } });
     if (c) return c.id;
   }
   if (ref.columnName) {
-    const c = await db.column.findFirst({ where: { name: ref.columnName } });
-    if (c) return c.id;
+    const id = await findColumnIdByName(ref.columnName, ref.board);
+    if (id) return id;
   }
   throw new Error(`Coluna não encontrada: ${ref.columnId ?? ref.columnName}`);
 }
@@ -87,8 +98,10 @@ export async function peekCardCode(): Promise<string> {
   return `${CARD_CODE_PREFIX}${(c?.value ?? 0) + 1}`;
 }
 
-export async function listColumns() {
+export async function listColumns(board?: string | null) {
+  const boardId = await resolveBoardId(board);
   return db.column.findMany({
+    where: { boardId },
     orderBy: { position: "asc" },
     include: {
       _count: { select: { subscriptions: true } },
@@ -99,21 +112,8 @@ export async function listColumns() {
 }
 
 export async function listCards(filter: CardFilter) {
-  const columnId = filter.columnId ?? (filter.columnName
-    ? (await db.column.findFirst({ where: { name: filter.columnName } }))?.id
-    : undefined);
   return db.card.findMany({
-    where: {
-      archivedAt: null,
-      ...(columnId ? { columnId } : {}),
-      ...(filter.priority ? { priority: filter.priority } : {}),
-      ...(filter.type ? { type: filter.type } : {}),
-      ...(filter.assignee
-        ? { assignees: { some: { OR: [
-            { id: filter.assignee }, { name: filter.assignee }, { email: filter.assignee },
-          ] } } }
-        : {}),
-    },
+    where: await cardFilterWhere(filter),
     orderBy: [{ columnId: "asc" }, { position: "asc" }],
     include: cardInclude,
   });
@@ -239,12 +239,16 @@ export function toCardSummary(card: CardSummarySource): CardSummary {
 
 /** `where` compartilhado entre listCards (UI/API) e listCardsSummary (MCP). */
 async function cardFilterWhere(filter: CardFilter) {
+  // Coluna pedida por nome e inexistente no board não pode virar "sem filtro":
+  // o id impossível devolve lista vazia em vez de todos os cards.
   const columnId = filter.columnId ?? (filter.columnName
-    ? (await db.column.findFirst({ where: { name: filter.columnName } }))?.id
+    ? (await findColumnIdByName(filter.columnName, filter.board)) ?? "__none__"
     : undefined);
+  const boardId = !columnId && filter.board ? await resolveBoardId(filter.board) : undefined;
   return {
     archivedAt: null,
     ...(columnId ? { columnId } : {}),
+    ...(boardId ? { column: { boardId } } : {}),
     ...(filter.priority ? { priority: filter.priority } : {}),
     ...(filter.type ? { type: filter.type } : {}),
     ...(filter.assignee
@@ -308,8 +312,10 @@ export interface ArchivedCardSummaryPage {
  */
 export async function listArchivedCardsSummary(
   page?: { limit?: number; offset?: number },
+  board?: string,
 ): Promise<ArchivedCardSummaryPage> {
-  const where = { archivedAt: { not: null } };
+  const boardId = board ? await resolveBoardId(board) : undefined;
+  const where = { archivedAt: { not: null }, ...(boardId ? { column: { boardId } } : {}) };
   const limit = clampMcpLimit(page?.limit);
   const offset = Math.max(0, Math.floor(page?.offset ?? 0) || 0);
   const [total, rows] = await Promise.all([
@@ -347,8 +353,10 @@ export interface ColumnSummary {
  * UI, que embute todo card com `cardInclude`) que servia o `list_columns` do MCP
  * e produzia os 1,5 MB. Quem quer os cards chama `list_cards`.
  */
-export async function listColumnsSummary(): Promise<ColumnSummary[]> {
+export async function listColumnsSummary(board?: string | null): Promise<ColumnSummary[]> {
+  const boardId = await resolveBoardId(board);
   const cols = await db.column.findMany({
+    where: { boardId },
     orderBy: { position: "asc" },
     include: {
       _count: { select: { subscriptions: true, cards: { where: { archivedAt: null } } } },
@@ -468,10 +476,11 @@ export function unarchiveCard(id: string) {
   return db.card.update({ where: { id }, data: { archivedAt: null }, include: cardInclude });
 }
 
-// Lista os cards arquivados, com o nome da coluna de origem.
-export function listArchivedCards() {
+// Lista os cards arquivados do board, com o nome da coluna de origem.
+export async function listArchivedCards(board?: string | null) {
+  const boardId = await resolveBoardId(board);
   return db.card.findMany({
-    where: { archivedAt: { not: null } },
+    where: { archivedAt: { not: null }, column: { boardId } },
     orderBy: { archivedAt: "desc" },
     include: { ...cardInclude, column: { select: { name: true } } },
   });
@@ -578,14 +587,20 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
   const actorId = await resolveUserId(actor);
   const result = await db.$transaction(async (tx) => {
     const current = await tx.card.findUnique({
-      where: { id }, select: { columnId: true, blocker: true, column: { select: { id: true, name: true } } },
+      where: { id },
+      select: {
+        columnId: true, blocker: true,
+        column: { select: { id: true, name: true, boardId: true } },
+      },
     });
     if (!current) throw new Error(`Card não encontrado: ${id}`);
+    // Por id, a coluna pode ser de outro board (o card muda de board). Por
+    // nome, só vale dentro do board atual do card — o nome se repete entre boards.
     const target = columnIdRef
       ? await tx.column.findUnique({
           where: { id: columnIdRef }, select: { id: true, name: true },
         }) ?? await tx.column.findFirst({
-          where: { name: columnIdRef }, select: { id: true, name: true },
+          where: { boardId: current.column?.boardId, name: columnIdRef }, select: { id: true, name: true },
         })
       : await tx.column.findUnique({
           where: { id: current.columnId }, select: { id: true, name: true },
@@ -610,7 +625,9 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
       where: { id }, data: { columnId: target.id, position: pos, assignees }, include: cardInclude,
     });
     await notifyCardMoved(tx, id, actorId, current.columnId, target);
-    const fromColumn = target.id === current.columnId ? null : current.column;
+    const fromColumn = target.id === current.columnId || !current.column
+      ? null
+      : { id: current.column.id, name: current.column.name };
     return { moved, fromColumn, toColumn: target };
   });
   if (result.fromColumn) await dispatchCardMoved(id, result.fromColumn, result.toColumn);
@@ -661,21 +678,29 @@ export const listLabels = () => db.label.findMany({ orderBy: { name: "asc" } });
 // Assinatura barata do estado do board para polling de tempo real.
 // Muda em edição (updatedAt), criação/exclusão (count), comentário
 // (commentCount) e em qualquer mexida nas colunas (colSig).
-export async function boardVersion(): Promise<string> {
-  const [agg, cardCount, commentCount, attachmentCount, columns] = await Promise.all([
-    db.card.aggregate({ _max: { updatedAt: true } }),
-    db.card.count(),
-    db.comment.count(),
-    db.attachment.count(),
+// Escopada no board: mexer em outro board não refaz o fetch deste.
+export async function boardVersion(board?: string | null): Promise<string> {
+  const boardId = await resolveBoardId(board);
+  const inBoard = { column: { boardId } };
+  const [agg, cardCount, commentCount, attachmentCount, columns, boardRow] = await Promise.all([
+    db.card.aggregate({ where: inBoard, _max: { updatedAt: true } }),
+    db.card.count({ where: inBoard }),
+    db.comment.count({ where: { card: inBoard } }),
+    db.attachment.count({ where: { card: inBoard } }),
     // Column não tem updatedAt; a lista é pequena (uma dezena de linhas), então
     // a própria estrutura serve de assinatura — pega renomear, recolorir e mover.
     db.column.findMany({
+      where: { boardId },
       orderBy: { position: "asc" },
       select: { id: true, name: true, color: true, position: true },
     }),
+    db.board.findUnique({ where: { id: boardId }, select: { name: true, description: true } }),
   ]);
   const ts = agg._max.updatedAt?.getTime() ?? 0;
-  const colSig = columns.map((c) => `${c.id}:${c.name}:${c.color ?? ""}:${c.position}`).join("|");
+  const colSig = [
+    `${boardRow?.name ?? ""}:${boardRow?.description ?? ""}`,
+    ...columns.map((c) => `${c.id}:${c.name}:${c.color ?? ""}:${c.position}`),
+  ].join("|");
   return `${ts}-${cardCount}-${commentCount}-${attachmentCount}-${hash(colSig)}`;
 }
 

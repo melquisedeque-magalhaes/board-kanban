@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
   $transaction: vi.fn(async (fn: (tx: typeof dbMock) => unknown) => fn(dbMock)),
+  board: { findFirst: vi.fn(), findUnique: vi.fn() },
   column: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
   card: {
     findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(),
@@ -38,7 +39,12 @@ import {
   listArchivedCardsSummary, MCP_LIST_DEFAULT_LIMIT, MCP_LIST_MAX_LIMIT,
 } from "./cards";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Board default: sem ref, toda leitura escopa nele.
+  dbMock.board.findFirst.mockResolvedValue({ id: "b1", name: "Board Time de IA", description: null });
+  dbMock.board.findUnique.mockResolvedValue({ name: "Board Time de IA", description: null });
+});
 
 describe("listColumns", () => {
   it("inclui a contagem de inscrições de cada coluna", async () => {
@@ -62,6 +68,14 @@ describe("resolveColumnId", () => {
   it("resolve por nome", async () => {
     dbMock.column.findFirst.mockResolvedValue({ id: "c2" });
     expect(await resolveColumnId({ columnName: "Em Andamento" })).toBe("c2");
+  });
+  it("nome resolve no board informado — o nome se repete entre boards", async () => {
+    dbMock.board.findUnique.mockResolvedValueOnce({ id: "b2" });
+    dbMock.column.findFirst.mockResolvedValue({ id: "c9" });
+    expect(await resolveColumnId({ columnName: "A Fazer", board: "b2" })).toBe("c9");
+    expect(dbMock.column.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { boardId: "b2", name: "A Fazer" },
+    }));
   });
   it("throw se não achar", async () => {
     dbMock.column.findUnique.mockResolvedValue(null);
