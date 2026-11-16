@@ -31,6 +31,9 @@ describe("POST /api/cards/[id]/attachments/upload", () => {
     await expect(onBeforeGenerateToken("cards/card1/a.png", null, false)).resolves.toMatchObject({ addRandomSuffix: true });
     await expect(onBeforeGenerateToken("cards/card2/a.png", null, false)).rejects.toThrow();
     await expect(onBeforeGenerateToken("cards/card1/../card2/a.png", null, false)).rejects.toThrow();
+    await expect(onBeforeGenerateToken("cards/card1/print..final.png", null, false)).resolves.toMatchObject({
+      maximumSizeInBytes: 500 * 1024 * 1024,
+    });
   });
 
   it("exige login antes de gerar token", async () => {

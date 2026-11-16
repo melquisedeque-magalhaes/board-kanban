@@ -72,7 +72,7 @@ function isCardBlobUrl(raw: string, cardId: string): boolean {
     return u.protocol === "https:"
       && u.hostname.endsWith(".blob.vercel-storage.com")
       && u.pathname.startsWith(`/cards/${cardId}/`)
-      && !u.pathname.includes("..");
+      && !u.pathname.split("/").includes("..");
   } catch {
     return false;
   }

@@ -4,6 +4,9 @@ import { requireUser } from "@/server/auth-guard";
 
 export const dynamic = "force-dynamic";
 
+// Teto por anexo: cobre vídeo de evidência sem deixar o Blob virar depósito.
+const MAX_BYTES = 500 * 1024 * 1024;
+
 // Gera o token para o navegador subir o anexo direto no Vercel Blob.
 // O arquivo não passa por aqui: a função da Vercel recusa corpo acima de
 // 4,5 MB. O registro do anexo é feito depois pelo POST ../attachments (JSON).
@@ -25,10 +28,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       body,
       request: req,
       onBeforeGenerateToken: async (pathname) => {
-        if (!pathname.startsWith(`cards/${id}/`) || pathname.includes("..")) {
+        if (!pathname.startsWith(`cards/${id}/`) || pathname.split("/").includes("..")) {
           throw new Error("Caminho fora do card");
         }
-        return { addRandomSuffix: true };
+        return { addRandomSuffix: true, maximumSizeInBytes: MAX_BYTES };
       },
     });
     return NextResponse.json(result);
