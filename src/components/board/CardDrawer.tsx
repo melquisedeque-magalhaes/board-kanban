@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
+import { upload } from "@vercel/blob/client";
 
 interface Attachment {
   id: string;
@@ -250,14 +251,29 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
     if (!cardId) return null;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/cards/${cardId}/attachments`, { method: "POST", body: fd });
-      if (!res.ok) {
-        const msg = res.status === 503 ? "Configure o Vercel Blob (BLOB_READ_WRITE_TOKEN)" : "Falha no upload";
+      // Sobe direto pro Blob (sem passar pela função, que recusa > 4,5 MB)
+      // e depois só registra o anexo com os metadados.
+      let blob: Awaited<ReturnType<typeof upload>>;
+      try {
+        blob = await upload(`cards/${cardId}/${file.name}`, file, {
+          access: "public",
+          handleUploadUrl: `/api/cards/${cardId}/attachments/upload`,
+          contentType: file.type || undefined,
+          multipart: file.size > 50 * 1024 * 1024,
+        });
+      } catch (err) {
+        const msg = String(err).includes("blob_not_configured")
+          ? "Configure o Vercel Blob (BLOB_READ_WRITE_TOKEN)"
+          : "Falha no upload";
         toast.error(msg);
         return null;
       }
+      const res = await fetch(`/api/cards/${cardId}/attachments`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: blob.url, name: file.name, contentType: file.type || null, size: file.size }),
+      });
+      if (!res.ok) { toast.error("Falha ao registrar o anexo"); return null; }
       return (await res.json()) as Attachment;
     } finally {
       setUploading(false);
