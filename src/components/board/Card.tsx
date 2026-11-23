@@ -32,6 +32,7 @@ export interface CardData {
   children?: { id: string; column: { name: string } }[];
   version?: string | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
+  testedBy?: { id: string; name: string; avatarUrl?: string | null } | null;
   labels: { id: string; name: string; color: string }[];
   _count: { comments: number };
 }
@@ -105,6 +106,23 @@ export function CardView({
               </Avatar>
             ))}
           </div>
+        )}
+        {card.testedBy && (
+          <span
+            className="flex items-center gap-1 rounded-full bg-muted py-0.5 pl-0.5 pr-1.5 text-[10px] font-medium text-muted-foreground"
+            title={`Tester / QA: ${card.testedBy.name}`}
+          >
+            <Avatar className="size-[16px]">
+              {card.testedBy.avatarUrl ? <AvatarImage src={card.testedBy.avatarUrl} alt={card.testedBy.name} /> : null}
+              <AvatarFallback
+                className="text-[8px] font-bold text-white"
+                style={{ background: avatarColor(card.testedBy.name) }}
+              >
+                {initials(card.testedBy.name)}
+              </AvatarFallback>
+            </Avatar>
+            QA
+          </span>
         )}
         {ty ? (
           <Badge

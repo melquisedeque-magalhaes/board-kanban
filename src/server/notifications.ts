@@ -48,6 +48,7 @@ type NotifiableCard = {
   code: string | null;
   title: string;
   requestedById: string | null;
+  testedById: string | null;
   assignees: { id: string }[];
 };
 
@@ -59,6 +60,7 @@ async function findNotifiableCard(tx: Tx, cardId: string): Promise<NotifiableCar
       code: true,
       title: true,
       requestedById: true,
+      testedById: true,
       assignees: { select: { id: true } },
     },
   });
@@ -68,6 +70,7 @@ function cardRecipients(card: NotifiableCard) {
   return [
     ...card.assignees.map((assignee) => assignee.id),
     ...(card.requestedById ? [card.requestedById] : []),
+    ...(card.testedById ? [card.testedById] : []),
   ];
 }
 

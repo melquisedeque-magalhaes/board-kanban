@@ -23,6 +23,7 @@ export interface CreateCardInput {
   version?: string;
   branchUrl?: string;
   requestedBy?: string; // id, nome ou e-mail
+  testedBy?: string; // tester/QA — id, nome ou e-mail
   code?: string;
   documentation?: string;
   assignees?: string[]; // nomes ou ids
@@ -41,6 +42,7 @@ export interface UpdateCardInput {
   version?: string | null;
   branchUrl?: string | null;
   requestedBy?: string | null; // id, nome ou e-mail
+  testedBy?: string | null; // tester/QA — id, nome ou e-mail
   code?: string | null;
   documentation?: string | null;
   dueDate?: string | Date | null;

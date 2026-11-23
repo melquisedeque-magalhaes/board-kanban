@@ -36,7 +36,7 @@ import {
   createCard, updateCard, getCard, listColumns, nextCardCode, peekCardCode,
   normalizeCardCode, getCardByCode, deleteComment, boardVersion, setCardBot,
   toCardSummary, clampMcpLimit, listCardsSummary, listColumnsSummary,
-  listArchivedCardsSummary, MCP_LIST_DEFAULT_LIMIT, MCP_LIST_MAX_LIMIT,
+  listArchivedCardsSummary, MCP_LIST_DEFAULT_LIMIT, MCP_LIST_MAX_LIMIT, isTestColumn,
 } from "./cards";
 
 beforeEach(() => {
@@ -138,6 +138,42 @@ describe("moveCard", () => {
     expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
       data: { columnId: "c1", position: 1000, assignees: undefined },
     }));
+  });
+
+  it("move para Teste sem tester → ator vira tester", async () => {
+    dbMock.user.findMany.mockResolvedValue([{ id: "u1" }]);
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null, testedById: null });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c2", name: "Teste" });
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c2", position: 1000 });
+
+    await moveCard("card1", "c2", 1000, "Giovanni");
+
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { columnId: "c2", position: 1000, assignees: undefined, testedById: "u1" },
+    }));
+  });
+
+  it("não sobrescreve tester já definido ao voltar para Teste", async () => {
+    dbMock.user.findMany.mockResolvedValue([{ id: "u2" }]);
+    dbMock.card.findUnique.mockResolvedValue({ columnId: "c1", blocker: null, testedById: "u1" });
+    dbMock.column.findUnique.mockResolvedValue({ id: "c2", name: "Em Teste" });
+    dbMock.card.update.mockResolvedValue({ id: "card1", columnId: "c2", position: 1000 });
+
+    await moveCard("card1", "c2", 1000, "Outra Pessoa");
+
+    expect(dbMock.card.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { columnId: "c2", position: 1000, assignees: undefined },
+    }));
+  });
+
+  it("isTestColumn casa Teste/QA e ignora a fila Aguardando Teste", () => {
+    expect(isTestColumn("Teste")).toBe(true);
+    expect(isTestColumn("Em Teste")).toBe(true);
+    expect(isTestColumn("QA")).toBe(true);
+    expect(isTestColumn("Testes")).toBe(true);
+    expect(isTestColumn("Aguardando Teste")).toBe(false);
+    expect(isTestColumn("Aguardando Deploy")).toBe(false);
+    expect(isTestColumn("Em Andamento")).toBe(false);
   });
 
   it("emite a mudança de coluna dentro da transação com o ator resolvido", async () => {

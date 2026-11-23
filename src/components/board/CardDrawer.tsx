@@ -7,7 +7,7 @@ import {
   Hash, Flag, CalendarDays, CircleDot, Users as UsersIcon, Check, Plus,
   FileText, Paperclip, Eye, Pencil, Loader2, X, Archive, Tag, GitBranch, Clock,
   Package, UserPlus, ExternalLink, Ban, TriangleAlert, Wrench, ListTree, CornerLeftUp, BookText,
-  Trash2, Bot,
+  Trash2, Bot, FlaskConical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CardWorkflows } from "@/components/workflows/CardWorkflows";
@@ -62,6 +62,7 @@ interface CardDetail {
   dueDate: string | null;
   createdAt: string;
   requestedBy: { id: string; name: string; avatarUrl?: string | null } | null;
+  testedBy: { id: string; name: string; avatarUrl?: string | null } | null;
   assignees: { id: string; name: string; avatarUrl?: string | null }[];
   comments: Comment[];
   attachments: Attachment[];
@@ -105,6 +106,58 @@ function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: 
 // Campo inline estilo Notion: transparente, hover, placeholder alinhado.
 const inlineField =
   "w-full rounded-md bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground hover:bg-accent focus:bg-accent focus:ring-0";
+
+// Campo de um único usuário (Solicitado por, Tester / QA): chip + popover com "Ninguém".
+function UserPickField({ user, users, placeholder, onPick }: {
+  user: { id: string; name: string; avatarUrl?: string | null } | null;
+  users: UserLite[];
+  placeholder: string;
+  onPick: (id: string | null) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={inlineField + " flex items-center gap-1.5 text-left"}>
+          {user ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-2">
+              <Avatar className="size-5">
+                {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt={user.name} /> : null}
+                <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(user.name) }}>
+                  {initials(user.name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xs">{user.name}</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-60 p-1">
+        <button
+          onClick={() => onPick(null)}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent">
+          <X className="size-4" /> <span className="flex-1 text-left">Ninguém</span>
+          {!user && <Check className="size-4" />}
+        </button>
+        {users.map((u) => (
+          <button key={u.id}
+            onClick={() => onPick(u.id)}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+            <Avatar className="size-5">
+              {u.avatarUrl ? <AvatarImage src={u.avatarUrl} alt={u.name} /> : null}
+              <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(u.name) }}>
+                {initials(u.name)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="flex-1 truncate text-left">{u.name}</span>
+            {user?.id === u.id && <Check className="size-4" />}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // Render de markdown (descrição rica) com estilos leves p/ dark/light.
 function MarkdownView({ source }: { source: string }) {
@@ -535,47 +588,17 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
               </Row>
 
               <Row icon={UserPlus} label="Solicitado por">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className={inlineField + " flex items-center gap-1.5 text-left"}>
-                      {card.requestedBy ? (
-                        <span className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-2">
-                          <Avatar className="size-5">
-                            {card.requestedBy.avatarUrl ? <AvatarImage src={card.requestedBy.avatarUrl} alt={card.requestedBy.name} /> : null}
-                            <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(card.requestedBy.name) }}>
-                              {initials(card.requestedBy.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs">{card.requestedBy.name}</span>
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Quem solicitou…</span>
-                      )}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-60 p-1">
-                    <button
-                      onClick={() => patch({ requestedBy: null })}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent">
-                      <X className="size-4" /> <span className="flex-1 text-left">Ninguém</span>
-                      {!card.requestedBy && <Check className="size-4" />}
-                    </button>
-                    {users.map((u) => (
-                      <button key={u.id}
-                        onClick={() => patch({ requestedBy: u.id })}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-                        <Avatar className="size-5">
-                          {u.avatarUrl ? <AvatarImage src={u.avatarUrl} alt={u.name} /> : null}
-                          <AvatarFallback className="text-[9px] text-white" style={{ background: avatarColor(u.name) }}>
-                            {initials(u.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="flex-1 truncate text-left">{u.name}</span>
-                        {card.requestedBy?.id === u.id && <Check className="size-4" />}
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
+                <UserPickField
+                  user={card.requestedBy} users={users} placeholder="Quem solicitou…"
+                  onPick={(id) => patch({ requestedBy: id })}
+                />
+              </Row>
+
+              <Row icon={FlaskConical} label="Tester / QA">
+                <UserPickField
+                  user={card.testedBy} users={users} placeholder="Quem testou…"
+                  onPick={(id) => patch({ testedBy: id })}
+                />
               </Row>
 
               <Row icon={CircleDot} label="Status">

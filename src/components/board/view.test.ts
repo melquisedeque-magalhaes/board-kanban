@@ -20,6 +20,14 @@ describe("applyView", () => {
     expect(applyView(cols, { ...EMPTY_VIEW, query: "tool" })[0].cards.map((c) => c.id)).toEqual(["1"]);
     expect(applyView(cols, { ...EMPTY_VIEW, query: "ti-1" })[0].cards.map((c) => c.id)).toEqual(["1"]);
   });
+  it("filtro por pessoa também casa o tester", () => {
+    const qaCols: ColumnData[] = [{ id: "c", name: "Teste", position: 1, cards: [
+      card({ id: "t", title: "Testado", testedBy: { id: "qa1", name: "QA" } }),
+      card({ id: "o", title: "Outro" }),
+    ] }];
+    expect(applyView(qaCols, { ...EMPTY_VIEW, assignee: "qa1" })[0].cards.map((c) => c.id)).toEqual(["t"]);
+  });
+
   it("filtra por prioridade e assignee", () => {
     expect(applyView(cols, { ...EMPTY_VIEW, priority: "ALTA" })[0].cards.map((c) => c.id)).toEqual(["1"]);
     expect(applyView(cols, { ...EMPTY_VIEW, assignee: "u1" })[0].cards.map((c) => c.id)).toEqual(["1"]);

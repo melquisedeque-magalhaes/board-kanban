@@ -200,6 +200,7 @@ export function buildMcpServer() {
         version: z.string().optional().describe("Versão (ex.: 2.3.1)"),
         branchUrl: z.string().optional().describe("Link da branch/MR (ex.: URL do GitLab/GitHub)"),
         requestedBy: z.string().optional().describe("Quem solicitou — id, nome ou e-mail do usuário"),
+        testedBy: z.string().optional().describe("Tester/QA — id, nome ou e-mail do usuário"),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),
@@ -235,6 +236,9 @@ export function buildMcpServer() {
         version: z.string().nullable().optional().describe("Versão (ex.: 2.3.1)"),
         branchUrl: z.string().nullable().optional().describe("Link da branch/MR (null limpa)"),
         requestedBy: z.string().nullable().optional().describe("Quem solicitou — id, nome ou e-mail (null limpa)"),
+        testedBy: z.string().nullable().optional().describe(
+          "Tester/QA — id, nome ou e-mail (null limpa). Preenchido sozinho com o ator ao mover para a coluna Teste",
+        ),
         code: z.string().optional(),
         assignees: z.array(z.string()).optional(),
         labels: z.array(z.string()).optional(),

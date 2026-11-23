@@ -90,6 +90,10 @@ model Card {
   position      Float
   requestedById String?
   requestedBy   User?          @relation("CardRequester", fields: [requestedById], references: [id])
+  // Quem testou (QA). Fica no card depois que ele sai de Teste — os
+  // responsáveis mudam ao longo do fluxo, o tester não.
+  testedById    String?
+  testedBy      User?          @relation("CardTester", fields: [testedById], references: [id])
   parentId      String?
   parent        Card?          @relation("Subtasks", fields: [parentId], references: [id], onDelete: SetNull)
   children      Card[]         @relation("Subtasks")
@@ -135,6 +139,7 @@ model User {
   profileCustomized     Boolean              @default(false)
   cards                 Card[]               @relation("CardAssignees")
   requestedCards        Card[]               @relation("CardRequester")
+  testedCards           Card[]               @relation("CardTester")
   comments              Comment[]
   receivedNotifications Notification[]       @relation("NotificationRecipient")
   notificationActions   Notification[]       @relation("NotificationActor")
@@ -143,33 +148,33 @@ model User {
 }
 
 model WorkflowTrigger {
-  id          String   @id @default(cuid())
-  name        String
-  event       String
-  webhookUrl  String   @db.Text
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  event      String
+  webhookUrl String   @db.Text
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([event, enabled])
 }
 
 model AiActivity {
-  id              String         @id @default(cuid())
-  cardId          String
-  card            Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  type            AiActivityType
-  idempotencyKey  String         @unique
-  workflowId      String?
-  runId           String?
-  workflowTagId   String?
-  workflow        Workflow?      @relation(fields: [workflowTagId], references: [id], onDelete: Restrict)
-  workflowName    String?
-  workflowAssigned Boolean        @default(false)
-  status          AiActivityStatus @default(COMPLETED)
-  startedAt       DateTime?
-  finishedAt      DateTime?
-  createdAt       DateTime       @default(now())
+  id               String           @id @default(cuid())
+  cardId           String
+  card             Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type             AiActivityType
+  idempotencyKey   String           @unique
+  workflowId       String?
+  runId            String?
+  workflowTagId    String?
+  workflow         Workflow?        @relation(fields: [workflowTagId], references: [id], onDelete: Restrict)
+  workflowName     String?
+  workflowAssigned Boolean          @default(false)
+  status           AiActivityStatus @default(COMPLETED)
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  createdAt        DateTime         @default(now())
 
   @@index([type, createdAt])
   @@index([cardId, createdAt])
@@ -177,13 +182,13 @@ model AiActivity {
 }
 
 model Workflow {
-  id         String       @id @default(cuid())
+  id         String            @id @default(cuid())
   name       String
   color      String
-  externalId String?      @unique
-  active     Boolean      @default(true)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  externalId String?           @unique
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
   activities AiActivity[]
   defaults   WorkflowDefault[]
 }
@@ -191,8 +196,8 @@ model Workflow {
 model WorkflowDefault {
   type          AiActivityType @id
   workflowTagId String
-  workflow      Workflow @relation(fields: [workflowTagId], references: [id], onDelete: Restrict)
-  updatedAt     DateTime @updatedAt
+  workflow      Workflow       @relation(fields: [workflowTagId], references: [id], onDelete: Restrict)
+  updatedAt     DateTime       @updatedAt
 }
 
 model Label {

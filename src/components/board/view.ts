@@ -28,7 +28,9 @@ export function applyView(columns: ColumnData[], v: ViewState): ColumnData[] {
       if (q && !`${c.code ?? ""} ${c.title}`.toLowerCase().includes(q)) return false;
       if (v.priority && c.priority !== v.priority) return false;
       if (v.type && c.type !== v.type) return false;
-      if (v.assignee && !c.assignees.some((a) => a.id === v.assignee)) return false;
+      // Filtro por pessoa casa responsável ou tester: quem testou não some do board
+      // quando o card sai de Teste e os responsáveis mudam.
+      if (v.assignee && !c.assignees.some((a) => a.id === v.assignee) && c.testedBy?.id !== v.assignee) return false;
       return true;
     });
     const sorted = [...cards];
