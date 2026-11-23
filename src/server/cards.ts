@@ -21,6 +21,7 @@ const cardInclude = {
   aiActivities: { include: { workflow: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] as Prisma.AiActivityOrderByWithRelationInput[] },
   assignees: true,
   requestedBy: true,
+  testedBy: true,
   labels: true,
   parent: { select: { id: true, code: true, title: true } },
   children: { where: { archivedAt: null }, select: { id: true, column: { select: { name: true } } } },
@@ -157,6 +158,7 @@ const cardSummarySelect = {
   assignees: { select: { name: true } },
   labels: { select: { name: true } },
   requestedBy: { select: { name: true } },
+  testedBy: { select: { name: true } },
   _count: { select: { comments: true, children: true } },
 } as const;
 
@@ -180,6 +182,7 @@ interface CardSummarySource {
   assignees?: { name: string | null }[];
   labels?: { name: string | null }[];
   requestedBy?: { name: string | null } | null;
+  testedBy?: { name: string | null } | null;
   _count?: { comments?: number; children?: number };
 }
 
@@ -204,6 +207,8 @@ export interface CardSummary {
   assignees: string[];
   labels: string[];
   requestedBy: string | null;
+  /** Quem testou (QA). */
+  testedBy: string | null;
   comments: number;
   children: number;
 }
@@ -232,6 +237,7 @@ export function toCardSummary(card: CardSummarySource): CardSummary {
     assignees: names(card.assignees),
     labels: names(card.labels),
     requestedBy: card.requestedBy?.name ?? null,
+    testedBy: card.testedBy?.name ?? null,
     comments: card._count?.comments ?? 0,
     children: card._count?.children ?? 0,
   };
@@ -516,12 +522,13 @@ export async function createCard(input: CreateCardInput) {
   const labelIds = await resolveLabelIds(input.labels ?? []);
   const code = input.code?.trim() ? input.code.trim() : await nextCardCode();
   const requestedById = await resolveUserId(input.requestedBy);
+  const testedById = await resolveUserId(input.testedBy);
   const card = await db.card.create({
     data: {
       columnId, title: input.title, details: input.details ?? input.description,
       documentation: input.documentation,
       priority: input.priority, type: input.type, version: input.version,
-      branchUrl: input.branchUrl, requestedById,
+      branchUrl: input.branchUrl, requestedById, testedById,
       code, position,
       parentId: input.parentId ?? null,
       blocker: input.blocker ?? null,
@@ -549,6 +556,8 @@ export async function updateCard(id: string, input: UpdateCardInput, actor?: str
   // undefined = não mexe; null = limpa; string = resolve para id.
   const requestedById =
     input.requestedBy === undefined ? undefined : await resolveUserId(input.requestedBy);
+  const testedById =
+    input.testedBy === undefined ? undefined : await resolveUserId(input.testedBy);
   const actorId = await resolveUserId(actor);
   return db.$transaction(async (tx) => {
     const before = await tx.card.findUnique({
@@ -560,7 +569,7 @@ export async function updateCard(id: string, input: UpdateCardInput, actor?: str
         title: input.title, details: input.details !== undefined ? input.details : input.description,
         documentation: input.documentation,
         priority: input.priority, type: input.type, version: input.version,
-        branchUrl: input.branchUrl, requestedById,
+        branchUrl: input.branchUrl, requestedById, testedById,
         code: input.code, dueDate, assignees, labels,
         parentId: input.parentId,
         blocker: input.blocker,
@@ -583,13 +592,19 @@ export function setCardBot(id: string, bot: boolean) {
   return db.card.update({ where: { id }, data: { bot }, include: cardInclude });
 }
 
+// Coluna de teste em andamento ("Teste", "Em Teste", "QA"…), não a fila
+// ("Aguardando Teste") — quem só enfileira não é quem testa.
+export function isTestColumn(name: string): boolean {
+  return !/aguardando|pronto para/i.test(name) && /\b(testes?|qa)\b/i.test(name);
+}
+
 export async function moveCard(id: string, columnIdRef: string, position?: number, actor?: string) {
   const actorId = await resolveUserId(actor);
   const result = await db.$transaction(async (tx) => {
     const current = await tx.card.findUnique({
       where: { id },
       select: {
-        columnId: true, blocker: true,
+        columnId: true, blocker: true, testedById: true,
         column: { select: { id: true, name: true, boardId: true } },
       },
     });
@@ -621,8 +636,13 @@ export async function moveCard(id: string, columnIdRef: string, position?: numbe
     const assignees = target.id !== current.columnId && actorId && /andamento/i.test(target.name)
       ? { connect: [{ id: actorId }] }
       : undefined;
+    // Entrou em "Teste" + actor informado + sem tester → o ator vira o tester.
+    // Não sobrescreve: quem testou continua registrado quando o card segue o fluxo.
+    const tester = target.id !== current.columnId && actorId && !current.testedById && isTestColumn(target.name)
+      ? { testedById: actorId }
+      : {};
     const moved = await tx.card.update({
-      where: { id }, data: { columnId: target.id, position: pos, assignees }, include: cardInclude,
+      where: { id }, data: { columnId: target.id, position: pos, assignees, ...tester }, include: cardInclude,
     });
     await notifyCardMoved(tx, id, actorId, current.columnId, target);
     const fromColumn = target.id === current.columnId || !current.column
