@@ -198,7 +198,9 @@ export function Chrome({
                 <Select value={view.assignee ?? "all"}
                   onValueChange={(v) => setView({ ...view, assignee: v === "all" ? null : v })}>
                   <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  {/* popper: no item-aligned, todo re-render (presença, refetch do
+                      board) reposiciona a lista e a rolagem volta para o topo. */}
+                  <SelectContent position="popper">
                     <SelectGroup>
                       <SelectItem value="all">Todos</SelectItem>
                       {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}

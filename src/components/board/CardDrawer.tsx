@@ -107,6 +107,10 @@ function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: 
 const inlineField =
   "w-full rounded-md bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground hover:bg-accent focus:bg-accent focus:ring-0";
 
+// Popover das listas de usuário: limitado à altura livre da tela e com rolagem
+// própria, para a lista não passar do fim da página quando o time cresce.
+const userListPopover = "w-60 max-h-(--radix-popover-content-available-height) overflow-y-auto p-1";
+
 // Campo de um único usuário (Solicitado por, Tester / QA): chip + popover com "Ninguém".
 function UserPickField({ user, users, placeholder, onPick }: {
   user: { id: string; name: string; avatarUrl?: string | null } | null;
@@ -133,7 +137,7 @@ function UserPickField({ user, users, placeholder, onPick }: {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-60 p-1">
+      <PopoverContent align="start" collisionPadding={8} className={userListPopover}>
         <button
           onClick={() => onPick(null)}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent">
@@ -564,7 +568,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
                       )}
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-60 p-1">
+                  <PopoverContent align="start" collisionPadding={8} className={userListPopover}>
                     <div className="px-2 py-1 text-xs text-muted-foreground">Selecione um ou mais</div>
                     {users.map((u) => {
                       const sel = card.assignees.some((a) => a.id === u.id);
