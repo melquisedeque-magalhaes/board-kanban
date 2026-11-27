@@ -107,9 +107,17 @@ function Row({ icon: Icon, label, children }: { icon: React.ElementType; label: 
 const inlineField =
   "w-full rounded-md bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground hover:bg-accent focus:bg-accent focus:ring-0";
 
-// Popover das listas de usuário: limitado à altura livre da tela e com rolagem
-// própria, para a lista não passar do fim da página quando o time cresce.
-const userListPopover = "w-60 max-h-(--radix-popover-content-available-height) overflow-y-auto p-1";
+// Popover das listas de usuário: rolagem própria e altura limitada ao menor entre
+// 20rem e o espaço livre da tela. O teto fixo impede a lista de crescer quando o
+// espaço livre muda (redimensionar a janela, por exemplo).
+const userListPopover =
+  "w-60 max-h-[min(20rem,var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain p-1";
+
+// `modal`: o drawer é um Dialog do Radix, cujo RemoveScroll bloqueia a roda do
+// mouse em tudo que está fora do SheetContent — e o popover vai para um portal no
+// body. Modal, o popover registra o próprio RemoveScroll, que passa a valer no
+// lugar do drawer: a lista rola com o mouse e o drawer fica parado enquanto ela
+// está aberta (sem drawer rolando, a lista não "acompanha" o scroll).
 
 // Campo de um único usuário (Solicitado por, Tester / QA): chip + popover com "Ninguém".
 function UserPickField({ user, users, placeholder, onPick }: {
@@ -119,7 +127,7 @@ function UserPickField({ user, users, placeholder, onPick }: {
   onPick: (id: string | null) => void;
 }) {
   return (
-    <Popover>
+    <Popover modal>
       <PopoverTrigger asChild>
         <button className={inlineField + " flex items-center gap-1.5 text-left"}>
           {user ? (
@@ -545,7 +553,7 @@ export function CardDrawer({ cardId, columns, users, currentUser, onClose, onCha
               </Row>
 
               <Row icon={UsersIcon} label="Responsável">
-                <Popover>
+                <Popover modal>
                   <PopoverTrigger asChild>
                     <button className={inlineField + " flex flex-wrap items-center gap-1.5 text-left"}>
                       {card.assignees.length === 0 ? (

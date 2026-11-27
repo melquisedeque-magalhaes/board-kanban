@@ -80,3 +80,22 @@ Com a correção, também mantém a posição durante o refetch real do board (`
 ## Superfícies
 
 Só a web. O board-kanban não tem app desktop nem worker.
+
+## Ajuste pós-PR (2026-11-27): rolagem dos popovers dentro do drawer
+
+**Relato (PRD):** no drawer do card, os selects de Responsável, Solicitado por e Tester/QA mostram a barra de rolagem, mas a roda do mouse não rola a lista. Se o drawer rolar com a lista aberta, a lista aumenta de altura acompanhando a rolagem.
+
+**Causa:** o drawer é um `Dialog` do Radix (`Sheet`), que monta um `RemoveScroll` com `shards=[contentRef]` (`@radix-ui/react-dialog/dist/index.mjs:110`). O `PopoverContent` vai para um portal no `body`, fora do `SheetContent`, e o `react-remove-scroll` cancela o `wheel` de tudo que está fora do lock ativo. Com o drawer rolando, o gatilho se move e a altura livre (`--radix-popover-content-available-height`) é recalculada, então o `max-h` do commit anterior acompanha a rolagem.
+
+**Correção (`CardDrawer.tsx`):** `<Popover modal>` nos dois popovers (o popover registra o próprio `RemoveScroll`, que passa a ser o lock ativo: a lista rola e o drawer fica parado enquanto ela está aberta) e teto fixo `max-h-[min(20rem,var(--radix-popover-content-available-height))]` + `overscroll-contain`.
+
+**Medição** (harness Vite `.superpowers/harness-ti-1210-scroll/`, fora do Git, com `ui/sheet.tsx` e `ui/popover.tsx` reais; 30 usuários; Chrome headless 1280×768; roda real do mouse via Playwright):
+
+| Variante | Roda na lista (`scrollTop`) | Roda no drawer com a lista aberta |
+|---|---|---|
+| Antes (não modal, `max-h` = altura livre) | **0** (bloqueada) | drawer 324 → 804, lista **736 → 752 px** e sai da tela (top −456) |
+| Só o teto (não modal) | — | altura fica em 320, mas o drawer rola e a lista sai da tela |
+| Só `modal` (sem teto) | — | drawer parado, mas a altura ainda depende do espaço livre (736 → 662 com rolagem programática) |
+| **Correção (modal + teto)** | **0 → 200** | drawer parado em 324, lista fixa em 320 px; com rolagem programática do drawer, continua 320 px |
+
+As duas partes são necessárias (sensor de discriminação acima). Gates: `tsc --noEmit` e `eslint` limpos; `npm test` 315 passaram, 3 skipped.
